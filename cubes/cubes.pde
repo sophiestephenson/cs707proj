@@ -1,7 +1,9 @@
+import processing.svg.PGraphicsSVG;
+
 // sizes
 int boxsize = 50;
 int camsize = 25;
-int offset = 50; // space between cam and cube when starting/stopping
+int offset = 100; // space between cam and cube when starting/stopping
 
 // camera sizes
 int camsY = 500 - camsize;
@@ -29,7 +31,7 @@ int zPos = -400;
 int stopX = cam3X - offset;
 
 // movement
-float speed = 1;
+float speed = 2;
 boolean running = false;
 
 // data collection
@@ -38,6 +40,8 @@ ArrayList<Float[]> frames = new ArrayList<>();
 
 void setup() {
   size(800, 500, P3D);
+  //camera(width/2, height/2, (height/2) / tan(PI/6), width/2, height/2, 0, 0, 1, 0);
+  cam4.set_camera();
 }
 
 
@@ -46,7 +50,6 @@ void draw() {
   // scene
   background(200);
   lights();
-  camera(width/2, height/2, (height/2) / tan(PI/6), width/2, height/2, 0, 0, 1, 0);
   
   cam1.draw();
   cam2.draw();
@@ -61,8 +64,11 @@ void draw() {
   popMatrix();
   
   
-  if (mousePressed) {
-    running = true;
+  if (keyPressed) {
+    if (key == ENTER && !running) {
+      running = true;
+      beginRecord(P3D, "recording.p3d");
+    }
   }
   
   if (running) {
@@ -72,9 +78,10 @@ void draw() {
     xPos += speed;
     if (xPos >= stopX) {
       running = false;
+      endRecord();
       calcDistances();
       printFrames(frames);
-      saveFramesToCSV(frames);
+      //saveFramesToCSV(frames);
     }
   }
   
