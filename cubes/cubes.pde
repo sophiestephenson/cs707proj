@@ -4,7 +4,7 @@ String folder = "two_cameras";
 // sizes
 int boxsize = 50;
 int camsize = 25;
-int offset = 75; // space between cam and cube when starting/stopping
+int offset = 100; // space between cam and cube when starting/stopping
 
 // camera sizes
 int camsY = 500 - camsize;
@@ -41,7 +41,7 @@ ArrayList<Float[]> frames = new ArrayList<>();
 
 void setup() {
   size(800, 500, P3D);
-  cam2.set_camera();
+  //cam1.set_camera();
 }
 
 
