@@ -5,7 +5,115 @@
 import cv2 as cv
 import argparse
 import numpy as np
+from utils import *
 
+#################################
+# WRAPPERS FOR USE IN BLACK BOX
+#################################
+
+#
+# uses optical flow CV to identify the change in position per frame and therefore
+# the speed of movement between different frames.
+#
+# params: filename (the name of the video file within cubes/two_cameras/)
+# returns: an array of the speeds between each frame
+#
+def get_speeds(filename):
+	# get video
+	capture = cv.VideoCapture(cv.samples.findFileOrKeep("cubes/two_cameras/" + filename))
+	if not capture.isOpened():
+		print("Unable to open", filename)
+		exit(0)
+
+	return optical_flow(capture)
+
+
+#################################
+# RAW CV FUNCTIONS
+#################################
+
+
+#
+# uses optical flow CV to identify the change in position per frame and therefore
+# the speed of movement between different frames.
+#
+# params: capture (the cv.VideoCapture object of the video)
+# returns: an array of the speeds between each frame (for use in get_speeds)
+#
+def optical_flow(capture):
+	# params for ShiTomasi corner detection
+	feature_params = dict( maxCorners = 100,
+						qualityLevel = 0.8,
+						minDistance = 7,
+						blockSize = 7 )
+	# Parameters for lucas kanade optical flow
+	lk_params = dict( winSize  = (15,15),
+					maxLevel = 2,
+					criteria = (cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 0.03))
+	# Create some random colors
+	color = np.random.randint(0,255,(100,3))
+	# Take first frame and find corners in it
+	ret, old_frame = capture.read()
+	old_gray = cv.cvtColor(old_frame, cv.COLOR_BGR2GRAY)
+	p0 = cv.goodFeaturesToTrack(old_gray, mask = None, **feature_params)
+	#print(p0)
+	# Create a mask image for drawing purposes
+	mask = np.zeros_like(old_frame)
+
+	# keep track of the speeds as we go through the frames
+	speeds = []
+
+	while(1):
+		ret,frame = capture.read()
+		try:
+			frame_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+		except:
+			print("color error, quitting")
+			return speeds
+		# calculate optical flow
+		p1, st, err = cv.calcOpticalFlowPyrLK(old_gray, frame_gray, p0, None, **lk_params)
+		#print(p1)
+
+		# Select good points
+		if p1 is not None:
+			good_new = p1[st==1]
+			good_old = p0[st==1]
+			
+			# calculate the change and save the average change
+			changes = []
+			for i in range(len(good_new)):
+				changes.append(calc_change(good_old[i], good_new[i]))
+			try:
+				mean = np.mean(changes)
+				speeds.append(mean)
+				print(mean)
+			except:
+				print("no changes to save")
+
+
+		# draw the tracks
+		for i,(new,old) in enumerate(zip(good_new, good_old)):
+			a,b = new.ravel()
+			c,d = old.ravel()
+			mask = cv.line(mask, (int(a),int(b)),(int(c),int(d)), color[i].tolist(), 2)
+			frame = cv.circle(frame,(int(a),int(b)),5,color[i].tolist(),-1)
+		img = cv.add(frame,mask)
+		cv.imshow('frame',img)
+		k = cv.waitKey(30) & 0xff
+		if k == 27:
+			break
+		# Now update the previous frame and previous points
+		old_gray = frame_gray.copy()
+		p0 = good_new.reshape(-1,1,2)
+
+	return speeds
+
+
+#
+# shows the background-subtracted version of the video
+#
+# params: capture (the cv.VideoCapture object of the video)
+#
 def background_subtractor(capture):
 	backSub = cv.createBackgroundSubtractorKNN()
 
@@ -28,6 +136,13 @@ def background_subtractor(capture):
 		if keyboard == 'q' or keyboard == 27:
 			break
 
+
+#
+# shows the meanshift-tracker version of the video
+# DOES NOT CURRENTLY WORK
+#
+# params: capture (the cv.VideoCapture object of the video)
+#
 def meanshift_tracker(capture):
 	# take first frame of the video
 	ret,frame = capture.read()
@@ -61,70 +176,39 @@ def meanshift_tracker(capture):
 		else:
 			break
 
-def optical_flow(capture):
-	# params for ShiTomasi corner detection
-	feature_params = dict( maxCorners = 100,
-						qualityLevel = 0.3,
-						minDistance = 7,
-						blockSize = 7 )
-	# Parameters for lucas kanade optical flow
-	lk_params = dict( winSize  = (15,15),
-					maxLevel = 2,
-					criteria = (cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 0.03))
-	# Create some random colors
-	color = np.random.randint(0,255,(100,3))
-	# Take first frame and find corners in it
-	ret, old_frame = capture.read()
-	old_gray = cv.cvtColor(old_frame, cv.COLOR_BGR2GRAY)
-	p0 = cv.goodFeaturesToTrack(old_gray, mask = None, **feature_params)
-	# Create a mask image for drawing purposes
-	mask = np.zeros_like(old_frame)
-	while(1):
-		ret,frame = capture.read()
-		frame_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
-		# calculate optical flow
-		p1, st, err = cv.calcOpticalFlowPyrLK(old_gray, frame_gray, p0, None, **lk_params)
-		# Select good points
-		if p1 is not None:
-			good_new = p1[st==1]
-			good_old = p0[st==1]
-		# draw the tracks
-		for i,(new,old) in enumerate(zip(good_new, good_old)):
-			a,b = new.ravel()
-			c,d = old.ravel()
-			mask = cv.line(mask, (int(a),int(b)),(int(c),int(d)), color[i].tolist(), 2)
-			frame = cv.circle(frame,(int(a),int(b)),5,color[i].tolist(),-1)
-		img = cv.add(frame,mask)
-		cv.imshow('frame',img)
-		k = cv.waitKey(30) & 0xff
-		if k == 27:
-			break
-		# Now update the previous frame and previous points
-		old_gray = frame_gray.copy()
-		p0 = good_new.reshape(-1,1,2)
+#################################
+# MAIN
+#################################
 
+#
+# default function if the file is run
+# takes command line args -f [filename] [-bs] [-mt] [-of]
+#
+def main():
+	# parse args
+	parser = argparse.ArgumentParser()
+	parser.add_argument('-f', type=str, help='Filepath to the video', default='cubes/two_cameras/cam1.mov')
+	parser.add_argument('-bs', action='store_true', help='Run background subtractor (opt)')
+	parser.add_argument('-mt', action='store_true', help='Run meanshift tracker (opt)')
+	parser.add_argument('-of', action='store_true', help='Run optical flow (opt)')
+	args = parser.parse_args()
 
-# parse args
-parser = argparse.ArgumentParser()
-parser.add_argument('-f', type=str, help='Path to the video', default='cam1.mov')
-parser.add_argument('-bs', action='store_true')
-parser.add_argument('-mt', action='store_true')
-parser.add_argument('-of', action='store_true')
-args = parser.parse_args()
+	# get video
+	capture = cv.VideoCapture(cv.samples.findFileOrKeep(args.f))
+	if not capture.isOpened():
+		print("Unable to open", args.f)
+		exit(0)
 
-# get video
-capture = cv.VideoCapture(cv.samples.findFileOrKeep('cubes/recordings/' + args.f))
-if not capture.isOpened():
-	print("Unable to open", args.f)
-	exit(0)
+	# run program
+	if args.mt:
+		meanshift_tracker(capture)
+	if args.bs: 
+		background_subtractor(capture)
+	if args.of:
+		optical_flow(capture)
 
-# run program
-if args.mt:
-	meanshift_tracker(capture)
-if args.bs: 
-	background_subtractor(capture)
-if args.of:
-	optical_flow(capture)
+main()
+
 
 
 
