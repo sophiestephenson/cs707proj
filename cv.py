@@ -53,9 +53,27 @@ def get_sizes(frame_coords):
 
 	return sizes
 
+#
+# for each pair of frames, identifies the general direction of movement 
+# for use in the black box.
+#
+# params: frame (an array of frames, each frame has a set of coordinates 
+#  						corresponding to the different tracked points)
+# returns: a list of directions between each pair of frames
+#
+def get_directions(frame_coords):
+
+	directions = []
+	# do stuff
+	return directions
 
 
-
+#
+# gets the speeds, sizes, and directions of the frames from the RGB video.
+#
+# params: filename (the name of the camera perspective video)
+# returns: a tuple of lists (speeds, sizes, directions)
+#
 def gather_data(filename):
 	# get video
 	capture = cv.VideoCapture(cv.samples.findFileOrKeep("cubes/two_cameras/" + filename))
@@ -64,9 +82,10 @@ def gather_data(filename):
 		exit(0)
 
 	frame_coords = optical_flow(capture)
-	#speeds = get_speeds(frame_coords)
+	speeds = get_speeds(frame_coords)
 	sizes = get_sizes(frame_coords)
-	return sizes
+	directions = get_directions(frame_coords)
+	return (speeds, sizes, directions)
 
 
 
@@ -77,11 +96,11 @@ def gather_data(filename):
 
 
 #
-# uses optical flow CV to identify the change in position per frame and therefore
-# the speed of movement between different frames.
+# displays the optical flow of the video using CV and captures the list of 
+# coordinates of interest for every frame.
 #
 # params: capture (the cv.VideoCapture object of the video)
-# returns: an array of the speeds between each frame (for use in get_speeds)
+# returns: a list of frames, where each frame contains a list of the coords of interest
 #
 def optical_flow(capture):
 	# params for ShiTomasi corner detection
