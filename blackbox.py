@@ -2,7 +2,7 @@
 # blackbox.py
 ################################
 
-from cv import get_speeds
+from cv import gather_data, get_speeds
 
 # pipeline
 # 	1. for each camera:
@@ -14,7 +14,7 @@ from cv import get_speeds
 def read_rbg_frame():
 
 	# how fast is the scene changing?
-	speeds = get_speeds("cam2.mov")
+	speeds = gather_data("cam1.mov")
 
 	# how big is the object?
 	# what direction is the object moving in?

@@ -2,6 +2,7 @@
 # cv.py
 ################################
 
+from typing import Tuple
 import cv2 as cv
 import argparse
 import numpy as np
@@ -15,17 +16,59 @@ from utils import *
 # uses optical flow CV to identify the change in position per frame and therefore
 # the speed of movement between different frames.
 #
-# params: filename (the name of the video file within cubes/two_cameras/)
-# returns: an array of the speeds between each frame
+# params: frame_coords (an array of frames, each frame has a set of coordinates 
+#  						corresponding to the different tracked points)
+# returns: an array of differences between the frames
 #
-def get_speeds(filename):
+def get_speeds(frame_coords):
+
+	speeds = []
+	for i in range(1, len(frame_coords)):
+		old_frame = frame_coords[i - 1]
+		new_frame = frame_coords[i]
+		diffs = []
+		for j in range(len(old_frame)):
+			diff = coord_change(old_frame[j], new_frame[j])
+			diffs.append(diff)
+		speeds.append(np.mean(diffs))
+		print(np.mean(diffs))
+
+	return speeds
+
+#
+# for each frame, approximates the size of the shape at that time by
+# using the area of the shape formed by the coordinates.
+#
+# params: frame (an array of frames, each frame has a set of coordinates 
+#  						corresponding to the different tracked points)
+# returns: an array representing the approximate size of the object at each frame
+#
+def get_sizes(frame_coords):
+
+	sizes = []
+	for frame in frame_coords:
+		s = approx_size(frame)
+		print(s)
+		sizes.append(s)
+
+	return sizes
+
+
+
+
+def gather_data(filename):
 	# get video
 	capture = cv.VideoCapture(cv.samples.findFileOrKeep("cubes/two_cameras/" + filename))
 	if not capture.isOpened():
 		print("Unable to open", filename)
 		exit(0)
 
-	return optical_flow(capture)
+	frame_coords = optical_flow(capture)
+	#speeds = get_speeds(frame_coords)
+	sizes = get_sizes(frame_coords)
+	return sizes
+
+
 
 
 #################################
@@ -43,7 +86,7 @@ def get_speeds(filename):
 def optical_flow(capture):
 	# params for ShiTomasi corner detection
 	feature_params = dict( maxCorners = 100,
-						qualityLevel = 0.8,
+						qualityLevel = 0.7,
 						minDistance = 7,
 						blockSize = 7 )
 	# Parameters for lucas kanade optical flow
@@ -56,12 +99,12 @@ def optical_flow(capture):
 	ret, old_frame = capture.read()
 	old_gray = cv.cvtColor(old_frame, cv.COLOR_BGR2GRAY)
 	p0 = cv.goodFeaturesToTrack(old_gray, mask = None, **feature_params)
-	#print(p0)
 	# Create a mask image for drawing purposes
 	mask = np.zeros_like(old_frame)
 
 	# keep track of the speeds as we go through the frames
-	speeds = []
+	frames = []
+	add_old = True
 
 	while(1):
 		ret,frame = capture.read()
@@ -69,26 +112,20 @@ def optical_flow(capture):
 			frame_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
 		except:
 			print("color error, quitting")
-			return speeds
+			return frames
 		# calculate optical flow
 		p1, st, err = cv.calcOpticalFlowPyrLK(old_gray, frame_gray, p0, None, **lk_params)
-		#print(p1)
 
 		# Select good points
 		if p1 is not None:
-			good_new = p1[st==1]
-			good_old = p0[st==1]
-			
-			# calculate the change and save the average change
-			changes = []
-			for i in range(len(good_new)):
-				changes.append(calc_change(good_old[i], good_new[i]))
-			try:
-				mean = np.mean(changes)
-				speeds.append(mean)
-				print(mean)
-			except:
-				print("no changes to save")
+			good_new = p1[st!=2]  # [st==1]
+			good_old = p0[st!=2]  # [st==1]
+			if add_old:
+				frames.append(good_old)
+				print(good_old)
+				add_old = False
+			frames.append(good_new)
+			print(good_new)
 
 
 		# draw the tracks
@@ -106,7 +143,8 @@ def optical_flow(capture):
 		old_gray = frame_gray.copy()
 		p0 = good_new.reshape(-1,1,2)
 
-	return speeds
+	#return speeds
+	return frames
 
 
 #
