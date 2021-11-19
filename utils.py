@@ -5,7 +5,83 @@
 import numpy as np
 from shapely import geometry
 import matplotlib.pyplot as plt
-from config import SMOOTHING_KERNEL_SIZE
+from config import *
+from pprint import pprint
+import csv
+import statistics
+
+#################################
+# GETTING DATA FROM FRAME COORDS
+#################################
+
+#
+# uses optical flow CV to identify the change in position per frame and therefore
+# the speed of movement between different frames.
+#
+# params: frame_coords (an array of frames, each frame has a set of coordinates 
+#  						corresponding to the different tracked points)
+# returns: an array of differences between the frames
+#
+def get_speeds(frame_coords):
+
+	speeds = []
+	for i in range(1, len(frame_coords)):
+
+		old_frame = frame_coords[i - 1]
+		new_frame = frame_coords[i]
+
+		diffs = []
+		for j in range(len(old_frame)):
+			diff = coord_change(old_frame[j], new_frame[j])
+			diffs.append(diff)
+
+		speeds.append(np.mean(diffs))
+
+	return speeds
+
+#
+# for each frame, approximates the size of the shape at that time by
+# using the area of the shape formed by the coordinates.
+#
+# params: frame (an array of frames, each frame has a set of coordinates 
+#  						corresponding to the different tracked points)
+# returns: an array representing the approximate size of the object at each frame
+#
+def get_sizes(frame_coords):
+
+	sizes = []
+	for frame in frame_coords:
+		s = approx_size(frame)
+		sizes.append(s)
+
+	return sizes
+
+#
+# for each pair of frames, identifies the general direction of movement 
+# for use in the black box. (very rough approximation)
+#
+# params: frame (an array of frames, each frame has a set of coordinates 
+#  						corresponding to the different tracked points)
+# returns: the direction of the object
+#
+def get_direction(frame_coords):
+
+	directions = []
+	for i in range(1, len(frame_coords)):
+
+		old_frame = frame_coords[i - 1]
+		new_frame = frame_coords[i]
+		dir = obj_direction(old_frame, new_frame)
+		directions.append(dir)
+		
+	# combine the info
+	mode = statistics.mode(directions)
+	return mode
+
+
+#################################
+# HELPERS
+#################################
 
 #
 # given two coordinates (x, y), calculate the distance between them
@@ -116,6 +192,7 @@ def plot(data, title):
 	plt.title(title)
 	plt.show()
 
+
 #
 # get the correlation coefficient of the data
 #
@@ -124,3 +201,31 @@ def plot(data, title):
 #
 def corr_coef(data):
 	return np.corrcoef(data, np.arange(len(data)))[0][1]
+
+
+#
+# get the ground truth from saed file and map it to a specific length list
+#
+# params: camera number, the size of the list to create
+# returns: the ground truth, mapped to the appropriate size list
+#
+def get_ground_truth(camera, size):
+	
+	# grab gt from file
+	ground_truth = []
+	with open(DIRECTORY + "row_per_cam.csv", 'r') as f:
+		reader = csv.reader(f)
+		for row in reader:
+			if row[0] == camera:
+				ground_truth = row[1:]
+				break
+	orig_len = len(ground_truth)
+
+	# map the gp to a new list
+	ground_truth_new_size = []
+	for i in range(size):
+		gt_i = round((i/size) * orig_len)
+		ground_truth_new_size.append(ground_truth[gt_i])
+
+	pprint(ground_truth_new_size)
+	return ground_truth_new_size
