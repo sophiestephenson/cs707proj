@@ -4,6 +4,7 @@
 
 import numpy as np
 from shapely import geometry
+import matplotlib.pyplot as plt
 
 #
 # given two coordinates (x, y), calculate the distance between them
@@ -39,4 +40,57 @@ def approx_size(coords_set):
 		else:
 			return 1
 
+#
+# given two sets of coords, returns the (rough) direction of the object
+#
+# params: old_coords_set, new_coords_set
+# returns: the approx direction of the object (left, right, away, towards)
+#
+def obj_direction(old_coords_set, new_coords_set):
+
+	xdirs = []
+	ydirs = []
+	for j in range(len(old_coords_set)):
+		x1, y1 = old_coords_set[j]
+		x2, y2 = new_coords_set[j]
+		xdirs.append(x1 - x2)
+		ydirs.append(y1 - y2)
+
+	if (all(map(lambda x: x > 0, xdirs))): return "left"
+	if (all(map(lambda x: x < 0, xdirs))): return "right"
+
+	# compare the first two coords for away and toward (rough)
+	old_x1, y1 = old_coords_set[0]
+	old_x2, y2 = old_coords_set[1]
+	new_x1, y3 = new_coords_set[0]
+	new_x2, y4 = new_coords_set[1]
+	if (old_x1 - old_x2) > (new_x1 - new_x2): return "away"
+	elif (old_x1 - old_x2) < (new_x1 - new_x2): return "towards"
+	else: return "not sure"
+
+# https://danielmuellerkomorowska.com/2020/06/02/smoothing-data-by-rolling-average-with-numpy/
+def smooth_data(l):
+	kernel = np.ones(SMOOTHING_KERNEL_SIZE) / SMOOTHING_KERNEL_SIZE
+	return np.convolve(l, kernel, mode="same")
+
+# https://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list 
+def reject_outliers(data):
+	Q1, Q3 = np.quantile(data, [0.25, 0.75])
+	IQR = Q3 - Q1
+
+	def isOutlier(x):
+		return (x < (Q1 - 1.5 * IQR) or x > (Q3 + 1.5 * IQR))
+
+	outliers = list(map(isOutlier, data))
+	
+	for i in range(len(data)):
+		if outliers[i] and i > 0:
+			print("removed outlier:", data[i])
+			data[i] = data[i - 1]
+	return data
+
+def plot(data, title):
+	plt.plot(data)
+	plt.title(title)
+	plt.show()
 

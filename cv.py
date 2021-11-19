@@ -2,11 +2,13 @@
 # cv.py
 ################################
 
-from typing import Tuple
 import cv2 as cv
 import argparse
 import numpy as np
+import statistics
+import pickle
 from utils import *
+from config import *
 
 #################################
 # WRAPPERS FOR USE IN BLACK BOX
@@ -24,14 +26,16 @@ def get_speeds(frame_coords):
 
 	speeds = []
 	for i in range(1, len(frame_coords)):
+
 		old_frame = frame_coords[i - 1]
 		new_frame = frame_coords[i]
+
 		diffs = []
 		for j in range(len(old_frame)):
 			diff = coord_change(old_frame[j], new_frame[j])
 			diffs.append(diff)
+
 		speeds.append(np.mean(diffs))
-		print(np.mean(diffs))
 
 	return speeds
 
@@ -48,25 +52,31 @@ def get_sizes(frame_coords):
 	sizes = []
 	for frame in frame_coords:
 		s = approx_size(frame)
-		print(s)
 		sizes.append(s)
 
 	return sizes
 
 #
 # for each pair of frames, identifies the general direction of movement 
-# for use in the black box.
+# for use in the black box. (very rough approximation)
 #
 # params: frame (an array of frames, each frame has a set of coordinates 
 #  						corresponding to the different tracked points)
-# returns: a list of directions between each pair of frames
+# returns: the direction of the object
 #
-def get_directions(frame_coords):
+def get_direction(frame_coords):
 
 	directions = []
-	# do stuff
-	return directions
+	for i in range(1, len(frame_coords)):
 
+		old_frame = frame_coords[i - 1]
+		new_frame = frame_coords[i]
+		dir = obj_direction(old_frame, new_frame)
+		directions.append(dir)
+		
+	# combine the info
+	mode = statistics.mode(directions)
+	return mode
 
 #
 # gets the speeds, sizes, and directions of the frames from the RGB video.
@@ -74,21 +84,31 @@ def get_directions(frame_coords):
 # params: filename (the name of the camera perspective video)
 # returns: a tuple of lists (speeds, sizes, directions)
 #
-def gather_data(filename):
-	# get video
-	capture = cv.VideoCapture(cv.samples.findFileOrKeep("cubes/two_cameras/" + filename))
-	if not capture.isOpened():
-		print("Unable to open", filename)
-		exit(0)
+def gather_data(camera, ignore_file=False):
+	vid_filename = DIRECTORY + camera + ".mov"
+	pickle_filename = DIRECTORY + camera + "_coords.pkl"
 
-	frame_coords = optical_flow(capture)
+	# get saved frame data
+	try:
+		if ignore_file:
+			raise FileNotFoundError
+		frame_coords = pickle.load(open(pickle_filename, "rb"))
+
+	# if no saved frame data, generate frame data and store it for next time
+	except FileNotFoundError:
+		f = open(pickle_filename, "wb")
+		capture = cv.VideoCapture(cv.samples.findFileOrKeep(vid_filename))
+		if not capture.isOpened():
+			print("Unable to open", vid_filename)
+			exit(0)
+		frame_coords = optical_flow(capture)
+		pickle.dump(frame_coords, f)
+		f.close()
+
 	speeds = get_speeds(frame_coords)
 	sizes = get_sizes(frame_coords)
-	directions = get_directions(frame_coords)
-	return (speeds, sizes, directions)
-
-
-
+	direction = get_direction(frame_coords)
+	return (speeds, sizes, direction)
 
 #################################
 # RAW CV FUNCTIONS
@@ -105,9 +125,9 @@ def gather_data(filename):
 def optical_flow(capture):
 	# params for ShiTomasi corner detection
 	feature_params = dict( maxCorners = 100,
-						qualityLevel = 0.7,
-						minDistance = 7,
-						blockSize = 7 )
+						qualityLevel = OPTICAL_FLOW_QUALITY,
+						minDistance = MIN_DISTANCE,
+						blockSize = BLOCK_SIZE )
 	# Parameters for lucas kanade optical flow
 	lk_params = dict( winSize  = (15,15),
 					maxLevel = 2,
@@ -130,7 +150,6 @@ def optical_flow(capture):
 		try:
 			frame_gray = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
 		except:
-			print("color error, quitting")
 			return frames
 		# calculate optical flow
 		p1, st, err = cv.calcOpticalFlowPyrLK(old_gray, frame_gray, p0, None, **lk_params)
@@ -161,8 +180,7 @@ def optical_flow(capture):
 		# Now update the previous frame and previous points
 		old_gray = frame_gray.copy()
 		p0 = good_new.reshape(-1,1,2)
-
-	#return speeds
+	
 	return frames
 
 

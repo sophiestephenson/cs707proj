@@ -2,7 +2,10 @@
 # blackbox.py
 ################################
 
-from cv import gather_data, get_speeds
+from cv import gather_data
+from pprint import pprint
+import matplotlib.pyplot as plt
+from utils import smooth_data, reject_outliers, plot
 
 # pipeline
 # 	1. for each camera:
@@ -12,19 +15,15 @@ from cv import gather_data, get_speeds
 #   3. use feedback from the simulator to update predictions
 
 def read_rbg_frame():
+	speeds, sizes, direction = gather_data("cam2")
 
-	# how fast is the scene changing?
-	speeds = gather_data("cam1.mov")
-
-	# how big is the object?
-	# what direction is the object moving in?
-	# TODO: can probably estimate these given the positions of interest in optical flow
-
-	return
+	#plot(speeds, "rates of change")
+	plot(smooth_data(speeds), "rates of change (smoothed)")
+	#plot(sizes, "sizes")
+	plot(smooth_data(sizes), "sizes (smoothed)")
+	pprint(direction)
 
 def predict_fire():
 	return 1
-
-
 
 read_rbg_frame()
