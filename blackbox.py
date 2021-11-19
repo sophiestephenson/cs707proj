@@ -2,14 +2,12 @@
 # blackbox.py
 ################################
 
-from matplotlib.pyplot import get
 from config import DIRECTORY
 from cv import optical_flow
 from pprint import pprint
 from utils import *
-import csv
 import pickle
-import cv
+import cv2 as cv
 import argparse
 
 # pipeline
@@ -50,7 +48,7 @@ def read_rbg_frame(camera, ignore_file=False):
 	# get data about the rbg frame
 	speeds = smooth_data(get_speeds(frame_coords))
 	sizes = smooth_data(get_sizes(frame_coords))
-	direction = smooth_data(get_direction(frame_coords))
+	direction = get_direction(frame_coords)
 	plot(speeds, "rates of change")
 	plot(sizes, "sizes")
 
@@ -82,10 +80,9 @@ def predict_fire(camera):
 def main():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-c', type=str, help='Camera name', default='cam1')
-	parser.add_argument('-if', action='store_true', help='Ignore the stored coords file (opt)')
+	parser.add_argument('-i', action='store_true', help='Ignore the stored coords file (opt)')
 	args = parser.parse_args()
 
-	read_rbg_frame(args["c"], args["if"])
-
+	read_rbg_frame(args.c, args.i)
 
 main()
