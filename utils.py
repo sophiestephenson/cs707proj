@@ -5,6 +5,7 @@
 import numpy as np
 from shapely import geometry
 import matplotlib.pyplot as plt
+from config import SMOOTHING_KERNEL_SIZE
 
 #
 # given two coordinates (x, y), calculate the distance between them
@@ -68,11 +69,26 @@ def obj_direction(old_coords_set, new_coords_set):
 	elif (old_x1 - old_x2) < (new_x1 - new_x2): return "towards"
 	else: return "not sure"
 
+
+#
+# smooths data to remove noise
+#
+# params: list of data
+# returns: smoothed list
+#
 # https://danielmuellerkomorowska.com/2020/06/02/smoothing-data-by-rolling-average-with-numpy/
 def smooth_data(l):
 	kernel = np.ones(SMOOTHING_KERNEL_SIZE) / SMOOTHING_KERNEL_SIZE
 	return np.convolve(l, kernel, mode="same")
 
+
+#
+# rejects outliers using the IQR
+# doesn't look great
+#
+# params: list of data
+# returns: data without outliers (outliers become the previous value)
+#
 # https://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list 
 def reject_outliers(data):
 	Q1, Q3 = np.quantile(data, [0.25, 0.75])
@@ -89,8 +105,22 @@ def reject_outliers(data):
 			data[i] = data[i - 1]
 	return data
 
+#
+# create a plot of the data with the given title
+# 
+# params: data, title
+# returns: nothing, but prints a plot
+#
 def plot(data, title):
 	plt.plot(data)
 	plt.title(title)
 	plt.show()
 
+#
+# get the correlation coefficient of the data
+#
+# params: list of data
+# returns: the correlation coefficient
+#
+def corr_coef(data):
+	return np.corrcoef(data, np.arange(len(data)))[0][1]

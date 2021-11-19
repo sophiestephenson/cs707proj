@@ -4,8 +4,7 @@
 
 from cv import gather_data
 from pprint import pprint
-import matplotlib.pyplot as plt
-from utils import smooth_data, reject_outliers, plot
+from utils import *
 
 # pipeline
 # 	1. for each camera:
@@ -15,12 +14,15 @@ from utils import smooth_data, reject_outliers, plot
 #   3. use feedback from the simulator to update predictions
 
 def read_rbg_frame():
-	speeds, sizes, direction = gather_data("cam2")
+	speeds, sizes, direction = gather_data("cam1")
 
 	#plot(speeds, "rates of change")
 	plot(smooth_data(speeds), "rates of change (smoothed)")
 	#plot(sizes, "sizes")
 	plot(smooth_data(sizes), "sizes (smoothed)")
+
+	pprint(corr_coef(speeds))
+	pprint(corr_coef(sizes))
 	pprint(direction)
 
 def predict_fire():
