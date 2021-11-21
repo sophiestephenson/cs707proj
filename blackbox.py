@@ -94,7 +94,7 @@ def predict_fire(camera, params, ignore_file=False):
 
 		prediction.append(probability)
 
-	plot(prediction, "predicted firing")
+	if ignore_file: plot(prediction, "predicted firing")
 
 	return prediction
 
