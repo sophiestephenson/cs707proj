@@ -45,12 +45,13 @@ def read_rbg_frames(camera, ignore_file=False):
 	sizes = smooth_data(get_sizes(frame_coords))
 	direction = get_direction(frame_coords)
 
-	# print information
-	#plot(speeds, "rates of change")
-	#plot(sizes, "sizes")
-	#print("speed r:", corr_coef(speeds))
-	#print("size r:", corr_coef(sizes))
-	#pprint(direction)
+	# print information, but only if we are ignoring the file
+	if (ignore_file):
+		plot(speeds, "rates of change")
+		plot(sizes, "sizes")
+		#print("speed r:", corr_coef(speeds))
+		#print("size r:", corr_coef(sizes))
+		pprint(direction)
 
 	return (speeds, sizes, direction)
 
@@ -62,10 +63,10 @@ def read_rbg_frames(camera, ignore_file=False):
 # params: camera name (e.g., "cam1"), params for prediction
 # returns: array of predictions for when to fire
 #
-def predict_fire(camera, params):
+def predict_fire(camera, params, ignore_file=False):
 
 	# read rgb
-	speeds, sizes, direction = read_rbg_frames(camera)
+	speeds, sizes, direction = read_rbg_frames(camera, ignore_file)
 
 	prediction = []
 	time_to_wait = round(random() * params["wait time"]) # random start
@@ -93,7 +94,7 @@ def predict_fire(camera, params):
 
 		prediction.append(probability)
 
-	#plot(prediction, "predicted firing")
+	plot(prediction, "predicted firing")
 
 	return prediction
 
@@ -177,11 +178,13 @@ if __name__ == "__main__":
 
 	# run this loop until we decide not to (?)
 	d_hat = math.inf
+	ignore_file = True
 	while (d_hat > 0):
 
 		# get predictions for the two cameras
-		cam1_preds = predict_fire("cam1", params)
-		cam2_preds = predict_fire("cam2", params)
+		cam1_preds = predict_fire("cam1", params, ignore_file)
+		cam2_preds = predict_fire("cam2", params, ignore_file)
+		ignore_file = False # after the first round, use the saved file
 
 		# run the simulator with these predictions
 		simulated_distances = run_simulator({"cam1": cam1_preds, "cam2": cam2_preds})
