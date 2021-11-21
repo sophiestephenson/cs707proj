@@ -7,7 +7,6 @@ import numpy as np
 from shapely import geometry
 import matplotlib.pyplot as plt
 from config import *
-from pprint import pprint
 import csv
 import statistics
 

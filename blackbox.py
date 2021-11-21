@@ -3,7 +3,6 @@
 ################################
 
 from collections import defaultdict
-from os import wait
 from config import DIRECTORY
 from cv import optical_flow
 from pprint import pprint
@@ -12,7 +11,6 @@ import pickle
 import cv2 as cv
 from random import random
 import math
-import numpy as np
 
 
 #
@@ -21,7 +19,7 @@ import numpy as np
 # params: camera number, ignore_file (whether to overwrite stored pickles)
 # returns: information about the video (speeds, sizes, direction)
 #
-def read_rbg_frame(camera, ignore_file=False):
+def read_rbg_frames(camera, ignore_file=False):
 	vid_filename = DIRECTORY + camera + ".mov"
 	pickle_filename = DIRECTORY + camera + "_coords.pkl"
 
@@ -46,26 +44,28 @@ def read_rbg_frame(camera, ignore_file=False):
 	speeds = smooth_data(get_speeds(frame_coords))
 	sizes = smooth_data(get_sizes(frame_coords))
 	direction = get_direction(frame_coords)
+
+	# print information
 	#plot(speeds, "rates of change")
 	#plot(sizes, "sizes")
-
 	#print("speed r:", corr_coef(speeds))
 	#print("size r:", corr_coef(sizes))
 	#pprint(direction)
 
 	return (speeds, sizes, direction)
 
+
 #
 # given information about the rgb video, create an array of 
 # predictions for when to fire
 #
-# params: camera name
+# params: camera name (e.g., "cam1"), params for prediction
 # returns: array of predictions for when to fire
 #
 def predict_fire(camera, params):
 
 	# read rgb
-	speeds, sizes, direction = read_rbg_frame(camera)
+	speeds, sizes, direction = read_rbg_frames(camera)
 
 	prediction = []
 	time_to_wait = round(random() * params["wait time"]) # random start
@@ -97,6 +97,7 @@ def predict_fire(camera, params):
 
 	return prediction
 
+
 #
 # runs the simulator using our predictions and returns the values we get
 #
@@ -105,6 +106,8 @@ def predict_fire(camera, params):
 #
 def run_simulator(cam_predictions):
 	
+	## TO DO!!!
+
 	## send predictions to simulator
 	## run it
 	## get the predicted distances
@@ -114,7 +117,7 @@ def run_simulator(cam_predictions):
 
 	for k in cam_predictions.keys():
 		gt = get_ground_truth(k, len(cam_predictions[k]))
-		simulated_distances[k] = [x * random() for x in gt]
+		simulated_distances[k] = [x + (30 * random()) - 15 for x in gt]
 
 	return simulated_distances
 
@@ -138,18 +141,17 @@ def compare_to_ground_truth(simulated_distances):
 	return d_hat
 	
 
-# 
-# executes our reinforcement learning pipeline!
-#
-# pipeline
-#	1. for each camera:
-#   	- read info from video (rate of change (speed), size, and direction)
-#   	- predict when to fire based on this info
-#   2. send prediction information to the simulator and run
-#   3. use feedback from the simulator to update predictions
-#	4. select new parameters and run again
-#
-def main():
+
+if __name__ == "__main__":
+
+	# pipeline
+	#	1. for each camera:
+	#   	- read info from video (rate of change (speed), size, and direction)
+	#   	- predict when to fire based on this info
+	#   2. send prediction information to the simulator and run
+	#   3. use feedback from the simulator to update predictions
+	#	4. select new parameters and run again
+	#
 
 	## initialize the factor dictionaries
 	wait_times 			= defaultdict(inf)
@@ -215,5 +217,3 @@ def main():
 			params["size factor"] 		= int((random() * SIZE_FACTOR_RANGE) - SIZE_FACTOR_RANGE/2)
 			params["speed factor"] 		= int((random() * SPEED_FACTOR_RANGE) - SPEED_FACTOR_RANGE/2)
 			params["direction factor"] 	= int((random() * DIRECTION_FACTOR_RANGE) - DIRECTION_FACTOR_RANGE/2)
-
-main()

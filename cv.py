@@ -175,6 +175,8 @@ def main():
 	if args.of:
 		optical_flow(capture)
 
+main()
+
 
 
 
