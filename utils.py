@@ -2,6 +2,7 @@
 # utils.py
 ################################
 
+import math
 import numpy as np
 from shapely import geometry
 import matplotlib.pyplot as plt
@@ -225,7 +226,12 @@ def get_ground_truth(camera, size):
 	ground_truth_new_size = []
 	for i in range(size):
 		gt_i = round((i/size) * orig_len)
-		ground_truth_new_size.append(ground_truth[gt_i])
+		ground_truth_new_size.append(float(ground_truth[gt_i]))
 
-	pprint(ground_truth_new_size)
 	return ground_truth_new_size
+
+#
+# literally just returns infinit (for use in creating default dicts)
+#
+def inf():
+	return math.inf
