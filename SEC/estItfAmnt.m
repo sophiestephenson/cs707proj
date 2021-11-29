@@ -1,9 +1,14 @@
 function itfAmnt = estItfAmnt(N, binarySeq, start, ONIdx)
 
 itfAmnt = zeros(1, size(ONIdx, 2));
-for n = 1 : N
-    
+for n = 1:1
+%     if n == 2
+%         m = 1;
+%     else 
+%         m = 2;
+%     end
     ONIdxItf = find(binarySeq(n+1, :) == 1);
+  
     startOneCam = start(n, 1);
     
     
