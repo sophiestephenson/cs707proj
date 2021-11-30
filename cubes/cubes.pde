@@ -9,8 +9,8 @@ ArrayList<Float[]> frames = new ArrayList<>(); // the distances we collect along
 void setup() {
   size(800, 500, P3D);
 
-  if (Config.CAM_PERSPECTIVE != null) {
-	  cameras.get(Config.CAM_PERSPECTIVE).setPerspective()
+  if (Config.CAM_PERSPECTIVE != -1 && Config.CAM_PERSPECTIVE < cameras.size()) {
+	  cameras.get(Config.CAM_PERSPECTIVE).setPerspective();
   }
 }
 

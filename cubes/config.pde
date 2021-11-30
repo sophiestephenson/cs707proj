@@ -2,7 +2,7 @@ static class Config {
   // change for the desired scenario
   public static final String FOLDER = "test"; 
   public static final float SPEED = 5;
-  public static final float CAM_PERSPECTIVE = null;
+  public static final int CAM_PERSPECTIVE = 1;
   
   // scene params
   public static final int SCENE_HEIGHT = 500;
