@@ -2,18 +2,17 @@ class Camera {
   static final int VIEW_CENTER_X = 400;
   static final int VIEW_CENTER_Y = 500;
   static final int VIEW_CENTER_Z = -400;
+  static final int SIZE = Config.CAM_SIZE;
   
   int x;
   int y;
   int z;
-  int size;
   boolean hidden;
   
-  public Camera(int x, int y, int z, int size) {
+  public Camera(int x, int y, int z) {
     this.x = x;
     this.y = y;
     this.z = z;
-    this.size = size;
     hidden = false;
   }
   
@@ -24,19 +23,19 @@ class Camera {
       
       pushMatrix();
       translate(x, y, z);
-      sphere(camsize);
+      sphere(SIZE);
       popMatrix();
     }
   }
   
-  void set_camera() {
+  void setPerspective() {
     hidden = true;
     camera(x, y, z, VIEW_CENTER_X, VIEW_CENTER_Y, VIEW_CENTER_Z, 0, 1, 0);
   }
   
-  float dist(int boxX, int boxZ) {
+  float dist(int boxX) {
     float xdist = abs(boxX - x);
-    float zdist = abs(boxZ - z);
+    float zdist = abs(Config.BOX_Z - z);
     
     float d = sqrt(pow(xdist, 2) + pow(zdist, 2)) * 100.0;
     return round(d) / 100.0;
