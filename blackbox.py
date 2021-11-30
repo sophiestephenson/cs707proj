@@ -11,7 +11,7 @@ import pickle
 import cv2 as cv
 from random import random
 import math
-
+import os
 
 #
 # use optical flow to read information about the RGB camera video.
@@ -53,7 +53,9 @@ def read_rbg_frames(camera, ignore_file=False):
 		#print("size r:", corr_coef(sizes))
 		pprint(direction)
 
-	return (speeds, sizes, direction)
+	#return (speeds, sizes, direction)
+	#simplifying this for now
+	return frame_coords
 
 
 #
@@ -92,7 +94,7 @@ def predict_fire(camera, params, ignore_file=False):
 		if probability < 0: 
 			probability = 0
 
-		prediction.append(probability)
+		prediction.append(round(probability))
 
 	if ignore_file: plot(prediction, "predicted firing")
 
@@ -110,7 +112,8 @@ def run_simulator(cam_predictions):
 	## TO DO!!!
 
 	## send predictions to simulator
-	## run it
+	## run it using
+	# matlab -batch "Main2 test_ground_custom.csv test_fire_custom.csv test_output.csv sec_out_file"
 	## get the predicted distances
 	## return them
 
@@ -145,7 +148,21 @@ def compare_to_ground_truth(simulated_distances):
 
 if __name__ == "__main__":
 
+	#change the working dir to SEC
+	if not os.getcwd().endswith("SEC"):
+		try:
+			os.chdir("SEC")
+		except:
+			print("No SEC folder?")
+			exit(1)
+
+	#get all the datapoints from data folder
+	scenarios = []
+	for scenario in os.listdir("data"):
+		# scenario is something like "scenario1
+		scenarios.append(os.path.join("data", scenario))
 	# pipeline
+	#	1. for each scenario:
 	#	1. for each camera:
 	#   	- read info from video (rate of change (speed), size, and direction)
 	#   	- predict when to fire based on this info
@@ -181,16 +198,20 @@ if __name__ == "__main__":
 	ignore_file = True
 	while (d_hat > 0):
 
-		# get predictions for the two cameras
-		cam1_preds = predict_fire("cam1", params, ignore_file)
-		cam2_preds = predict_fire("cam2", params, ignore_file)
-		ignore_file = False # after the first round, use the saved file
+		#total error
+		d_hat = 0
+		for scenario in scenarios:
+			files = [f for f in os.listdir(scenario) if f.endswith(ground.csv)]
+			# get predictions for the two cameras
+			cam1_preds = predict_fire("cam1", params, ignore_file)
+			cam2_preds = predict_fire("cam2", params, ignore_file)
+			ignore_file = False # after the first round, use the saved file
 
-		# run the simulator with these predictions
-		simulated_distances = run_simulator({"cam1": cam1_preds, "cam2": cam2_preds})
+			# run the simulator with these predictions
+			simulated_distances = run_simulator({"cam1": cam1_preds, "cam2": cam2_preds})
 
 		# compare results to the ground truth 
-		d_hat = compare_to_ground_truth(simulated_distances)
+		d_hat += compare_to_ground_truth(simulated_distances)
 		print("d_hat:", d_hat)
 
 		# update factor dicts with d_hat (if d_hat is lower than the existing)

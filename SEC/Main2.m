@@ -1,13 +1,18 @@
+function main2 = Main2(groundfile, fire_file, out_file, sec_out_file)
+
 clc
 close all
-clear all
-
+if exist('sec_out_file','var') == 1
+    %then we run regular SEC
+    %todo: channel output to sec_out_file
+    %main
+end
 %% Data input
-ground_truth = csvread ('test_ground.csv');
+ground_truth = csvread (groundfile);
 num_camera = size(ground_truth,1);
 num_frame = length (ground_truth);
 
-p_sec = csvread ('test_fire.csv');
+p_sec = csvread (fire_file);
 %% Parameters
 trialN = 5;                         % number of trials
 d = ground_truth;                   % 1st Row - Camera 1 ; 2nd Row - Camera 2
@@ -88,9 +93,7 @@ for j=1:N
 end
 
 deltaD = dSet_SEC_cam - ground_truth;   %please check if this gives you correct dimension and values
-csvwrite('test_output.csv',deltaD);
-
-
+csvwrite(out_file,deltaD);
 
 
 
