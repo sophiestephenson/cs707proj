@@ -104,27 +104,24 @@ def predict_fire(camera, params, ignore_file=False):
 #
 # runs the simulator using our predictions and returns the values we get
 #
-# params: a dictionary mapping the camera names to their prediction arrays
+# param str scenario: The name of the scenario folder, eg "scenario1"
+# param str groundfile: The name of the csv file that contains the ground truths
+# param str fire_file: the name of the csv file that contains the firing orders
 # returns: a dictionary mapping the camera names to their simulated distances
 #
-def run_simulator(cam_predictions):
-	
-	## TO DO!!!
+def run_simulator(scenario: str, groundfile:str, fire_file:str):
 
-	## send predictions to simulator
-	## run it using
-	# matlab -batch "Main2 test_ground_custom.csv test_fire_custom.csv test_output.csv sec_out_file"
+	ground_path = os.path.join(DATA_DIR, scenario, groundfile)
+	fire_path = os.path.join(DATA_DIR, scenario, fire_file)
+	outfile_name = fire_file.replace("fire", "output")
+	out_path = os.path.join(DATA_DIR, scenario, outfile_name)
+	sec_out = "None"
+	## run sim using
+	# matlab -batch "Main2 groundfile.csv fire_file.csv output_file.csv sec_out_file.csv"
+	os.system('matlab -batch "Main2 ' + ground_path + " " + fire_path\
+		+ " " + out_path + " " +  sec_out + '"')
 	## get the predicted distances
-	## return them
-
-	simulated_distances = {}
-
-	for k in cam_predictions.keys():
-		gt = get_ground_truth(k, len(cam_predictions[k]))
-		simulated_distances[k] = [x + (30 * random()) - 15 for x in gt]
-
-	return simulated_distances
-
+	return get_matrix(out_path)
 
 #
 # gets the total diff between the simulated camera distances and the ground truth
@@ -134,15 +131,44 @@ def run_simulator(cam_predictions):
 # returns: d_hat, the sum of all differences between the ground truth distances
 # 			and the simulated distances
 #
-def compare_to_ground_truth(simulated_distances):
+def compare_to_ground_truth(ground_matrix, simulated_matrix):
 	d_hat = 0
-	for cam in simulated_distances.keys():
-		sim = simulated_distances[cam]
-		gt = get_ground_truth(cam, len(sim))
-		for i in range(len(gt)):
-			d_hat += abs(gt[i] - sim[i])
+	for ground_row, sim_row in zip(ground_matrix, simulated_matrix):
+		for i in range(len(ground_row)):
+			d_hat += abs(ground_row[i] - sim_row[i])
 
 	return d_hat
+
+# given the ground truth file of a particular permutation,
+# runs the simulator, calculates the total delta between ground truth and
+# estimated distance
+# params: name of groundfile
+# returns: total delta, a float
+def get_perm_delta(perm_groundfile:str, ignore_file):
+	ground_truth = get_matrix(perm_groundfile)
+	n_cams = len(ground_truth)
+
+	# get the list of fire predictions for each camera
+	camnames = ["cam" + str(c + 1) for c in range(n_cams)]
+
+	# the matrix of fire predictions for this permutation
+	# this is what gets dumped to the fire csv file
+	perm_preds = []
+	for cam in camnames:
+		cam_preds = predict_fire(cam, params, ignore_file)
+		perm_preds.append(cam_preds)
+
+	# dump to sX_pY_fire.csv
+	fire_file_name = perm_groundfile.split(".")[0].replace("ground",
+														   "fire") + ".csv"
+	scenario = "scenario" + fire_file_name.split("_")[0][1:]
+	with open(os.path.join(DATA_DIR, scenario, fire_file_name), "w") as f:
+		csvwriter = csv.writer(csvfile=f, delimiter=",")
+		csvwriter.writerows(perm_preds)
+
+	# returns a matrix of distances, as dumped into outfile by sim
+	simulated_distances = run_simulator(scenario, perm_groundfile, fire_file_name)
+	return compare_to_ground_truth(ground_truth, simulated_distances)
 	
 
 
@@ -161,8 +187,11 @@ if __name__ == "__main__":
 	for scenario in os.listdir("data"):
 		# scenario is something like "scenario1
 		scenarios.append(os.path.join("data", scenario))
+	# each scenario folder is named "scenarioX"
+	# we sort by the X
+	scenarios.sort(key=lambda s: int(s[len("scenario"):]))
+
 	# pipeline
-	#	1. for each scenario:
 	#	1. for each camera:
 	#   	- read info from video (rate of change (speed), size, and direction)
 	#   	- predict when to fire based on this info
@@ -200,19 +229,21 @@ if __name__ == "__main__":
 
 		#total error
 		d_hat = 0
+		# scenarioX
 		for scenario in scenarios:
-			files = [f for f in os.listdir(scenario) if f.endswith(ground.csv)]
-			# get predictions for the two cameras
-			cam1_preds = predict_fire("cam1", params, ignore_file)
-			cam2_preds = predict_fire("cam2", params, ignore_file)
-			ignore_file = False # after the first round, use the saved file
+			# step 1: get all the permutations of this scenario
+			permutation_grounds = [f for f in os.listdir(scenario) if f.endswith("ground.csv")]
 
-			# run the simulator with these predictions
-			simulated_distances = run_simulator({"cam1": cam1_preds, "cam2": cam2_preds})
+			#sX_xY_ground.csv
+			for perm_groundfile in permutation_grounds:
+				total_delta = get_perm_delta(perm_groundfile, ignore_file)
+				d_hat += total_delta
+				#only ignore file on the first run
+				ignore_file = False
 
-		# compare results to the ground truth 
-		d_hat += compare_to_ground_truth(simulated_distances)
-		print("d_hat:", d_hat)
+				# show that d_hat is added to with each run of the sim
+				print("d_hat:", d_hat)
+
 
 		# update factor dicts with d_hat (if d_hat is lower than the existing)
 		size_factors[params["size factor"]] 			= min(d_hat, size_factors[params["size factor"]])

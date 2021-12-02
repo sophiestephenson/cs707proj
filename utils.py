@@ -5,6 +5,7 @@
 import math
 import numpy as np
 from shapely import geometry
+import os
 import matplotlib.pyplot as plt
 from config import *
 import csv
@@ -203,31 +204,45 @@ def corr_coef(data):
 	return np.corrcoef(data, np.arange(len(data)))[0][1]
 
 
-#
+# dumbly get the matrix from file
+# The file can be either the ground truth or the simulated distances
+# each row corresponds to a camera, each column corresponds to a frame
+# params: name of groundfile: sX_pY_ground.csv
+# returns: matrix of ground truths. rows are cameras, columns are frames
+def get_matrix(file: str):
+	scenario = "scenario" + file.split("_")[0][1:]
+	with open(os.path.join(DATA_DIR, scenario, file), 'r') as f:
+		reader = csv.reader(f, delimiter=",")
+		matrix = list(reader)
+		return matrix
+
+# DEPRECATED:
 # get the ground truth from saed file and map it to a specific length list
 #
 # params: camera number, the size of the list to create
 # returns: the ground truth, mapped to the appropriate size list
+# def get_ground_truth(camera, size):
 #
-def get_ground_truth(camera, size):
-	
-	# grab gt from file
-	ground_truth = []
-	with open(DIRECTORY + "row_per_cam.csv", 'r') as f:
-		reader = csv.reader(f)
-		for row in reader:
-			if row[0] == camera:
-				ground_truth = row[1:]
-				break
-	orig_len = len(ground_truth)
+# 	# grab gt from file
+# 	ground_truth = []
+# 	with open(DIRECTORY + "row_per_cam.csv", 'r') as f:
+# 		reader = csv.reader(f)
+# 		for row in reader:
+# 			if row[0] == camera:
+# 				ground_truth = row[1:]
+# 				break
+# 	orig_len = len(ground_truth)
+#
+# 	# map the gp to a new list
+# 	ground_truth_new_size = []
+# 	for i in range(size):
+# 		gt_i = round((i/size) * orig_len)
+# 		ground_truth_new_size.append(float(ground_truth[gt_i]))
+#	return ground_truth_new_size
 
-	# map the gp to a new list
-	ground_truth_new_size = []
-	for i in range(size):
-		gt_i = round((i/size) * orig_len)
-		ground_truth_new_size.append(float(ground_truth[gt_i]))
-
-	return ground_truth_new_size
+def get_number_of_cameras(groundfile: str):
+	with open(groundfile) as f:
+		return len(f.readlines())
 
 #
 # literally just returns infinit (for use in creating default dicts)

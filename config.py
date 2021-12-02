@@ -3,7 +3,9 @@
 ################################
 
 # general configs
-DIRECTORY = "cubes/two_cameras/"
+# ../ needed because the working dir is ./SEC/
+DIRECTORY = "../cubes/two_cameras/"
+DATA_DIR = "data"
 
 # reinforcement learning
 SIZE_FACTOR_RANGE = 20000
