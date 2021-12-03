@@ -19,9 +19,11 @@ import os
 # params: camera number, ignore_file (whether to overwrite stored pickles)
 # returns: information about the video (speeds, sizes, direction)
 #
-def read_rbg_frames(camera, ignore_file=False):
-	vid_filename = DIRECTORY + camera + ".mov"
-	pickle_filename = DIRECTORY + camera + "_coords.pkl"
+def read_rbg_frames(path:str, camera:str, ignore_file=False):
+	# path is something like "data/scenario1/s1_p1"
+	# cam is something like "cam1"
+	vid_filename = path + camera + ".mov"
+	pickle_filename = path + camera + "_coords.pkl"
 
 	# get saved frame data
 	try:
@@ -53,9 +55,7 @@ def read_rbg_frames(camera, ignore_file=False):
 		#print("size r:", corr_coef(sizes))
 		pprint(direction)
 
-	#return (speeds, sizes, direction)
-	#simplifying this for now
-	return frame_coords
+	return (speeds, sizes, direction)
 
 
 #
@@ -65,10 +65,10 @@ def read_rbg_frames(camera, ignore_file=False):
 # params: camera name (e.g., "cam1"), params for prediction
 # returns: array of predictions for when to fire
 #
-def predict_fire(camera, params, ignore_file=False):
+def predict_fire(path, camera, params, ignore_file=False):
 
 	# read rgb
-	speeds, sizes, direction = read_rbg_frames(camera, ignore_file)
+	speeds, sizes, direction = read_rbg_frames(path, camera, ignore_file)
 
 	prediction = []
 	time_to_wait = round(random() * params["wait time"]) # random start
@@ -121,7 +121,7 @@ def run_simulator(scenario: str, groundfile:str, fire_file:str):
 	os.system('matlab -batch "Main2 ' + ground_path + " " + fire_path\
 		+ " " + out_path + " " +  sec_out + '"')
 	## get the predicted distances
-	return get_matrix(out_path)
+	return get_matrix(outfile_name)
 
 #
 # gets the total diff between the simulated camera distances and the ground truth
@@ -135,7 +135,7 @@ def compare_to_ground_truth(ground_matrix, simulated_matrix):
 	d_hat = 0
 	for ground_row, sim_row in zip(ground_matrix, simulated_matrix):
 		for i in range(len(ground_row)):
-			d_hat += abs(ground_row[i] - sim_row[i])
+			d_hat += abs(float(ground_row[i]) - float(sim_row[i]))
 
 	return d_hat
 
@@ -147,23 +147,24 @@ def compare_to_ground_truth(ground_matrix, simulated_matrix):
 def get_perm_delta(perm_groundfile:str, ignore_file):
 	ground_truth = get_matrix(perm_groundfile)
 	n_cams = len(ground_truth)
-
+	# dump to sX_pY_fire.csv
+	fire_file_name = perm_groundfile.split(".")[0].replace("ground", "fire") + ".csv"
+	scenario = "scenario" + fire_file_name.split("_")[0][1:]
 	# get the list of fire predictions for each camera
 	camnames = ["cam" + str(c + 1) for c in range(n_cams)]
 
 	# the matrix of fire predictions for this permutation
 	# this is what gets dumped to the fire csv file
 	perm_preds = []
+	#the path predict_fire needs to see the .mov files
+	path = os.path.join(DATA_DIR, scenario, fire_file_name.replace("fire.csv", ""))
 	for cam in camnames:
-		cam_preds = predict_fire(cam, params, ignore_file)
+		cam_preds = predict_fire(path, cam, params, ignore_file)
 		perm_preds.append(cam_preds)
 
-	# dump to sX_pY_fire.csv
-	fire_file_name = perm_groundfile.split(".")[0].replace("ground",
-														   "fire") + ".csv"
-	scenario = "scenario" + fire_file_name.split("_")[0][1:]
+
 	with open(os.path.join(DATA_DIR, scenario, fire_file_name), "w") as f:
-		csvwriter = csv.writer(csvfile=f, delimiter=",")
+		csvwriter = csv.writer(f, delimiter=",")
 		csvwriter.writerows(perm_preds)
 
 	# returns a matrix of distances, as dumped into outfile by sim
@@ -181,16 +182,14 @@ if __name__ == "__main__":
 		except:
 			print("No SEC folder?")
 			exit(1)
-
 	#get all the datapoints from data folder
-	scenarios = []
-	for scenario in os.listdir("data"):
-		# scenario is something like "scenario1
-		scenarios.append(os.path.join("data", scenario))
+	scenarios = [s for s in os.listdir(DATA_DIR) if os.path.isdir(os.path.join(DATA_DIR, s)) and "scenario" in s]
+	# for scenario in os.listdir(DATA_DIR):
+	# 	# scenario is something like "scenario1
+	# 	scenarios.append(os.path.join(DATA_DIR, scenario))
 	# each scenario folder is named "scenarioX"
 	# we sort by the X
 	scenarios.sort(key=lambda s: int(s[len("scenario"):]))
-
 	# pipeline
 	#	1. for each camera:
 	#   	- read info from video (rate of change (speed), size, and direction)
@@ -224,25 +223,25 @@ if __name__ == "__main__":
 
 	# run this loop until we decide not to (?)
 	d_hat = math.inf
-	ignore_file = True
+	ignore_file = False # set this to True to regenerate the pkl
 	while (d_hat > 0):
 
 		#total error
 		d_hat = 0
 		# scenarioX
 		for scenario in scenarios:
+			path = os.path.join(DATA_DIR, scenario)
 			# step 1: get all the permutations of this scenario
-			permutation_grounds = [f for f in os.listdir(scenario) if f.endswith("ground.csv")]
-
+			permutation_grounds = [f for f in os.listdir(path) if f.endswith("ground.csv")]
 			#sX_xY_ground.csv
 			for perm_groundfile in permutation_grounds:
+				print("running " + perm_groundfile)
 				total_delta = get_perm_delta(perm_groundfile, ignore_file)
 				d_hat += total_delta
 				#only ignore file on the first run
 				ignore_file = False
 
-				# show that d_hat is added to with each run of the sim
-				print("d_hat:", d_hat)
+		print("d_hat:", d_hat)
 
 
 		# update factor dicts with d_hat (if d_hat is lower than the existing)
@@ -251,9 +250,9 @@ if __name__ == "__main__":
 		direction_factors[params["direction factor"]]	= min(d_hat, direction_factors[params["direction factor"]])
 		wait_times[params["wait time"]] 				= min(d_hat, wait_times[params["wait time"]])
 
-		for d in (size_factors, speed_factors, direction_factors, wait_times):
-			pprint(d)
-			print("\n")
+		# for d in (size_factors, speed_factors, direction_factors, wait_times):
+		# 	pprint(d)
+		# 	print("\n")
 
 		# take greedy action with probability 1 - epsilon
 		# (pick the best performing value so far for each factor)

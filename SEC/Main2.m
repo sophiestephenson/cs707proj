@@ -67,8 +67,6 @@ E_photon = h*c/lambda;              % unit photon energy
 dSet_SEC_cam = zeros(N,num_frame);   
 for N = 1:num_camera
     for j = 1:num_frame
-        
-        N
         dSet_SEC = 0;
 
         for k = 1:trialN
@@ -94,6 +92,7 @@ end
 
 deltaD = dSet_SEC_cam - ground_truth;   %please check if this gives you correct dimension and values
 csvwrite(out_file,deltaD);
+disp("sim wrote to " + out_file)
 
 
 
