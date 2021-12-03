@@ -12,6 +12,7 @@ import cv2 as cv
 from random import random
 import math
 import os
+import numpy as np
 
 #
 # use optical flow to read information about the RGB camera video.
@@ -41,6 +42,7 @@ def read_rbg_frames(path:str, camera:str, ignore_file=False):
 		frame_coords = optical_flow(capture)
 		pickle.dump(frame_coords, f)
 		f.close()
+	print("len of frame coords for " + camera + " is " + str(len(frame_coords)))
 
 	# get data about the rbg frame
 	speeds = smooth_data(get_speeds(frame_coords))
@@ -73,6 +75,7 @@ def predict_fire(path, camera, params, ignore_file=False):
 	prediction = []
 	time_to_wait = round(random() * params["wait time"]) # random start
 	for i in range(len(sizes)):
+		#print("for " + camera + ", range is " + str(len(sizes)))
 		if time_to_wait > 0:
 			time_to_wait -= 1
 			prediction.append(0)
@@ -139,6 +142,10 @@ def compare_to_ground_truth(ground_matrix, simulated_matrix):
 
 	return d_hat
 
+def predict_fire_dummy(n_cams, n_frames):
+	#the 1 here indicates that each entry should be the result of 1 coin flip
+	return list(np.random.binomial(1, 1/n_cams, n_frames))
+
 # given the ground truth file of a particular permutation,
 # runs the simulator, calculates the total delta between ground truth and
 # estimated distance
@@ -147,6 +154,7 @@ def compare_to_ground_truth(ground_matrix, simulated_matrix):
 def get_perm_delta(perm_groundfile:str, ignore_file):
 	ground_truth = get_matrix(perm_groundfile)
 	n_cams = len(ground_truth)
+	n_frames = len(ground_truth[0])
 	# dump to sX_pY_fire.csv
 	fire_file_name = perm_groundfile.split(".")[0].replace("ground", "fire") + ".csv"
 	scenario = "scenario" + fire_file_name.split("_")[0][1:]
@@ -159,11 +167,10 @@ def get_perm_delta(perm_groundfile:str, ignore_file):
 	#the path predict_fire needs to see the .mov files
 	path = os.path.join(DATA_DIR, scenario, fire_file_name.replace("fire.csv", ""))
 	for cam in camnames:
-		cam_preds = predict_fire(path, cam, params, ignore_file)
+		cam_preds = predict_fire_dummy(n_cams, n_frames)
 		perm_preds.append(cam_preds)
 
-
-	with open(os.path.join(DATA_DIR, scenario, fire_file_name), "w") as f:
+	with open(os.path.join(DATA_DIR, scenario, fire_file_name), "w", newline='') as f:
 		csvwriter = csv.writer(f, delimiter=",")
 		csvwriter.writerows(perm_preds)
 
