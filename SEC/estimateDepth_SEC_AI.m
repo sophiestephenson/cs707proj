@@ -7,7 +7,12 @@ tau = 2*d/c;                                        % time-of-flight
 sampleN = size(e_s, 1);                             % number of samples
 
 %% Import binary sequence from video
-Tslot = (T/(A*p_sec))/M;                                        % slot integration time
+%M = 1
+% p_sec is 0 or 1
+%Tslot = (T/(A*p_sec))/M;                                        
+%Pretty sure tslot is just the length of one frame now, ie T
+Tslot = T/M; % slot integration time
+
 %% Generate random relative starting point for interfering cameras
 start = 2*rand(N, 1) - 1;                           % -1.0 ~ 1.0
 
@@ -85,6 +90,7 @@ C4 = sum(C4, 2);
 phase_hat = atan2((C4-C2) , (C1-C3));
 phase_hat(phase_hat<0) = phase_hat(phase_hat<0) + 2*pi;
 d_hat = c/(4*pi*f_mod)*phase_hat;
-
+disp("ground was " + d)
+disp("estimating " + d_hat)
 
 
