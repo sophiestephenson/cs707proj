@@ -90,7 +90,7 @@ C4 = sum(C4, 2);
 phase_hat = atan2((C4-C2) , (C1-C3));
 phase_hat(phase_hat<0) = phase_hat(phase_hat<0) + 2*pi;
 d_hat = c/(4*pi*f_mod)*phase_hat;
-disp("ground was " + d)
-disp("estimating " + d_hat)
+%disp("ground was " + d)
+%disp("estimating " + d_hat)
 
 

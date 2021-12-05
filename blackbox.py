@@ -42,7 +42,6 @@ def read_rbg_frames(path:str, camera:str, ignore_file=False):
 		frame_coords = optical_flow(capture)
 		pickle.dump(frame_coords, f)
 		f.close()
-	print("len of frame coords for " + camera + " is " + str(len(frame_coords)))
 
 	# get data about the rbg frame
 	speeds = smooth_data(get_speeds(frame_coords))

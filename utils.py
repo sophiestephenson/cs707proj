@@ -3,6 +3,8 @@
 ################################
 
 import math
+import pickle
+
 import numpy as np
 from shapely import geometry
 import os
@@ -203,6 +205,52 @@ def plot(data, title):
 def corr_coef(data):
 	return np.corrcoef(data, np.arange(len(data)))[0][1]
 
+def groom_groundfile(file: str):
+	#normalize the ground file. Processing produces big numbers
+	#the sim doesn't like big numbers
+	scenario = "scenario" + file.split("_")[0][1:]
+	matrix = []
+	with open(os.path.join(DATA_DIR, scenario, file), 'r') as f:
+		reader = csv.reader(f, delimiter=",")
+		matrix = list(reader)
+	norm_flag = False
+	for r in range(len(matrix)):
+		for c in range(len(matrix[r])):
+			if float(matrix[r][c]) > 100:
+				norm_flag = True
+				break
+	if norm_flag:
+		# keep the distances small
+		for r in range(len(matrix)):
+			for c in range(len(matrix[r])):
+				matrix[r][c] = float(matrix[r][c]) / 100
+
+	#fix the lengths of the ground truths according to the frame_coords in the pkls
+	stem = file.replace("_ground.csv", "")
+	pkls = [f for f in os.listdir(os.path.join(DATA_DIR, scenario, )) if stem in f and f.endswith(".pkl")]
+
+	new_matrix = []
+	for pkl in pkls:
+		frame_coords = pickle.load(open(os.path.join(DATA_DIR, scenario, pkl), "rb"))
+		num_frames = len(frame_coords)
+		#pkl = "s1_p1_cam1_coords.pkl" <- example
+		cam_number = int(pkl.split(".")[0].split("_")[2][3:])
+		orig_len = len(matrix[cam_number - 1])  # -1 because cams start at 1
+		print(cam_number)
+		print(orig_len)
+		# map the gp to a new list
+		ground_truth_new_row = []
+		for i in range(num_frames):
+			gt_i = round((i/num_frames) * orig_len)
+			ground_truth_new_row.append(float(matrix[cam_number - 1][gt_i]))
+		new_matrix.append(ground_truth_new_row)
+
+	matrix = new_matrix
+	# update the file
+	with open(os.path.join(DATA_DIR, scenario, file), 'w', newline='') as f:
+		writer = csv.writer(f, delimiter=",")
+		writer.writerows(matrix)
+
 
 # dumbly get the matrix from file
 # The file can be either the ground truth or the simulated distances
@@ -211,17 +259,10 @@ def corr_coef(data):
 # returns: matrix of ground truths. rows are cameras, columns are frames
 def get_matrix(file: str):
 	scenario = "scenario" + file.split("_")[0][1:]
-	maxtrix = []
+	matrix = []
 	with open(os.path.join(DATA_DIR, scenario, file), 'r') as f:
 		reader = csv.reader(f, delimiter=",")
 		matrix = list(reader)
-
-	#normalize the ground file. Processing produces big numbers
-	#the sim doesn't like big numbers
-	if "ground" in file:
-		for r in range(len(matrix)):
-			for c in range(len(matrix[r])):
-				matrix[r][c] = float(matrix[r][c])/100
 
 	return matrix
 
@@ -248,7 +289,7 @@ def get_matrix(file: str):
 # 	for i in range(size):
 # 		gt_i = round((i/size) * orig_len)
 # 		ground_truth_new_size.append(float(ground_truth[gt_i]))
-#	return ground_truth_new_size
+# 	return ground_truth_new_size
 
 def get_number_of_cameras(groundfile: str):
 	with open(groundfile) as f:
@@ -259,3 +300,7 @@ def get_number_of_cameras(groundfile: str):
 #
 def inf():
 	return math.inf
+
+if __name__ == "__main__":
+	os.chdir("SEC")
+	groom_groundfile("s1_p1_ground.csv")

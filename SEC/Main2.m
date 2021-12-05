@@ -14,7 +14,7 @@ num_frame = length (ground_truth);
 
 p_sec = csvread (fire_file);
 %% Parameters
-trialN = 1;                         % number of trials
+trialN = 5;                         % number of trials
 d = ground_truth;                   % 1st Row - Camera 1 ; 2nd Row - Camera 2
 
 
@@ -64,7 +64,6 @@ E_photon = h*c/lambda;              % unit photon energy
 % loop over dummy variables
 dSet_SEC_cam = zeros(N,num_frame);
 for N = 1:num_camera
-    N
     previous_d = 0;
     for j = 1:num_frame
         
@@ -75,7 +74,11 @@ for N = 1:num_camera
             %T_SEC = T/(A*p_SEC);                    %p_SEC cannot be 0
             % SEC
             if p_sec(N, j) == 1
-                d_hat = estimateDepth_SEC_AI(d(N,j), c, p_sec(N,j),N, M, A, e_s, e_a, e_i, f_mod, T,p_sec);
+                if d(N, j) == 0
+                    d_hat = 0;
+                else
+                    d_hat = estimateDepth_SEC_AI(d(N,j), c, p_sec(N,j),N, M, A, e_s, e_a, e_i, f_mod, T,p_sec);
+                end
                 previous_d = d_hat;
             else
                 d_hat = previous_d;
