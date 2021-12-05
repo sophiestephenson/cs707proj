@@ -211,10 +211,20 @@ def corr_coef(data):
 # returns: matrix of ground truths. rows are cameras, columns are frames
 def get_matrix(file: str):
 	scenario = "scenario" + file.split("_")[0][1:]
+	maxtrix = []
 	with open(os.path.join(DATA_DIR, scenario, file), 'r') as f:
 		reader = csv.reader(f, delimiter=",")
 		matrix = list(reader)
-		return matrix
+
+	#normalize the ground file. Processing produces big numbers
+	#the sim doesn't like big numbers
+	if "ground" in file:
+		for r in range(len(matrix)):
+			for c in range(len(matrix[r])):
+				matrix[r][c] = float(matrix[r][c])/100
+
+	return matrix
+
 
 # DEPRECATED:
 # get the ground truth from saed file and map it to a specific length list

@@ -25,7 +25,8 @@ N = num_camera;                              % number of interfering cameras
 
 
 % ToF parameters
-f_mod = 20e6;                       % modulation frequency(Hz)
+%f_mod = 20e6;                       % modulation frequency(Hz)
+f_mod = 1e6;                        % allows for longer d_max
 T = 1/30;                          % total integration time(s)
 
 
