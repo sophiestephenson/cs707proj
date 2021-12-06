@@ -13,6 +13,8 @@ from random import random
 import math
 import os
 import numpy as np
+from ml import *
+
 
 #
 # use optical flow to read information about the RGB camera video.
@@ -166,6 +168,9 @@ def get_perm_delta(perm_groundfile:str, ignore_file):
 	#the path predict_fire needs to see the .mov files
 	path = os.path.join(DATA_DIR, scenario, fire_file_name.replace("fire.csv", ""))
 	for cam in camnames:
+		cam_path = path + cam
+		assert os.path.isdir(cam_path)
+		#cam_preds = predict_fire_ml(cam_path)
 		cam_preds = predict_fire_dummy(n_cams, n_frames)
 		perm_preds.append(cam_preds)
 

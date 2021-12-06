@@ -13,6 +13,8 @@ from config import *
 import csv
 import statistics
 
+import cv2
+
 #################################
 # GETTING DATA FROM FRAME COORDS
 #################################
@@ -301,6 +303,31 @@ def get_number_of_cameras(groundfile: str):
 def inf():
 	return math.inf
 
+def rescale_frame(frame, percent=25):
+	width = int(frame.shape[1] * percent/ 100)
+	height = int(frame.shape[0] * percent/ 100)
+	dim = (width, height)
+	return cv2.resize(frame, dim, interpolation =cv2.INTER_AREA)
+
+def convert_to_jpgs(video_path: str):
+	path, video = os.path.split(video_path)
+	video = video.split(".")[0]
+	#the folder where the jpegs will go
+	if not os.path.exists(os.path.join(path, video)):
+		os.mkdir(os.path.join(path, video))
+
+	vidcap = cv2.VideoCapture(video_path)
+
+	success, image = vidcap.read()
+	count = 0
+	while success:
+		image = rescale_frame(image, 25)
+		cv2.imwrite(os.path.join(path, video, "frame%d.jpg" % count), image)  # save frame as JPEG file
+		success, image = vidcap.read()
+		print('Read a new frame: ', success)
+		count += 1
+
 if __name__ == "__main__":
-	os.chdir("SEC")
-	groom_groundfile("s1_p1_ground.csv")
+	#os.chdir("SEC")
+	#groom_groundfile("s1_p1_ground.csv")
+	convert_to_jpgs(os.path.join("SEC", DATA_DIR, "scenario1", "s1_p1_cam2.mov"))
