@@ -1,4 +1,5 @@
-
+//import libraries
+//import processing.video.*;
 // variables
 ArrayList<Camera> cameras = generateCameras(); // the cameras in the scene
 int xPos = Config.BOX_X_START;				   // the box x position
@@ -8,7 +9,7 @@ ArrayList<Float[]> frames = new ArrayList<>(); // the distances we collect along
 
 void setup() {
   size(800, 500, P3D);
-
+ 
   if (Config.CAM_PERSPECTIVE != -1 && Config.CAM_PERSPECTIVE < cameras.size()) {
 	  cameras.get(Config.CAM_PERSPECTIVE).setPerspective();
   }
@@ -42,8 +43,8 @@ void draw() {
     calcDistances();
     
     // increment xPos to move the box
+    saveFrame("line-#####.tif");
     xPos += Config.SPEED;
-    
     // at the end: stop, print frames, and save to CSV
     if (xPos >= Config.BOX_X_END) {
       running = false;
