@@ -17,3 +17,10 @@ in `config.pde`, set:
 then, go to `cubes.pde` in processing and hit run. this should save the distances at each frame to your desired folder. to get a video of the scene, i have just been doing screen recording of the scene from each camera's perspective.
 
 
+## generate video
+1. A saveframe function has been added to the CUBES file. No extra setup is needed, just follow the steps above and click run. 
+2. Once the motion creation is done, go to `Tools`, then find `Movie Maker`.
+3. Choose the source folder in the same directory called `frames`.
+4. Use `Framerate=30`, `Compression=MPEG-4`, and check the box `Same size as originals`
+5. Click `Create movie` and enjoy!
+
