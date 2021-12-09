@@ -5,8 +5,197 @@
 import cv2 as cv
 import argparse
 import numpy as np
+from pprint import pprint
 from utils import *
 from config import *
+
+#################################
+# GETTING DATA FROM FRAME COORDS
+#################################
+
+#
+# use optical flow to read information about the RGB camera video.
+#
+# params: camera number, ignore_file (whether to overwrite stored pickles)
+# returns: information about the video (speeds, sizes, direction)
+#
+def read_optical_flow_frames(path:str, camera:str, ignore_file=False):
+	# path is something like "data/scenario1/s1_p1"
+	# cam is something like "cam1"
+	vid_filename = path + camera + ".mov"
+	pickle_filename = path + camera + "_coords.pkl"
+
+	# get saved frame data
+	try:
+		if ignore_file:
+			raise FileNotFoundError
+		frame_coords = pickle.load(open(pickle_filename, "rb"))
+
+	# if no saved frame data, generate frame data and store it for next time
+	except FileNotFoundError:
+		f = open(pickle_filename, "wb")
+		capture = cv.VideoCapture(cv.samples.findFileOrKeep(vid_filename))
+		if not capture.isOpened():
+			print("Unable to open", vid_filename)
+			exit(0)
+		frame_coords = optical_flow(capture)
+		pickle.dump(frame_coords, f)
+		f.close()
+
+	# get data about the rbg frame
+	speeds = smooth_data(get_speeds(frame_coords))
+	sizes = smooth_data(get_sizes(frame_coords))
+	direction = get_direction(frame_coords)
+
+	# print information, but only if we are ignoring the file
+	if (ignore_file):
+		plot(speeds, "rates of change")
+		plot(sizes, "sizes")
+		#print("speed r:", corr_coef(speeds))
+		#print("size r:", corr_coef(sizes))
+		pprint(direction)
+
+	return (speeds, sizes, direction)
+
+#
+# uses optical flow CV to identify the change in position per frame and therefore
+# the speed of movement between different frames.
+#
+# params: frame_coords (an array of frames, each frame has a set of coordinates 
+#  						corresponding to the different tracked points)
+# returns: an array of differences between the frames
+#
+def get_speeds(frame_coords):
+
+	speeds = []
+	for i in range(1, len(frame_coords)):
+
+		old_frame = frame_coords[i - 1]
+		new_frame = frame_coords[i]
+
+		diffs = []
+		for j in range(len(old_frame)):
+			diff = coord_change(old_frame[j], new_frame[j])
+			diffs.append(diff)
+
+		speeds.append(np.mean(diffs))
+
+	return speeds
+
+#
+# for each frame, approximates the size of the shape at that time by
+# using the area of the shape formed by the coordinates.
+#
+# params: frame (an array of frames, each frame has a set of coordinates 
+#  						corresponding to the different tracked points)
+# returns: an array representing the approximate size of the object at each frame
+#
+def get_sizes(frame_coords):
+
+	sizes = []
+	for frame in frame_coords:
+		s = approx_size(frame)
+		sizes.append(s)
+
+	return sizes
+
+#
+# for each pair of frames, identifies the general direction of movement 
+# for use in the black box. (very rough approximation)
+#
+# params: frame (an array of frames, each frame has a set of coordinates 
+#  						corresponding to the different tracked points)
+# returns: the direction of the object
+#
+def get_direction(frame_coords):
+
+	directions = []
+	for i in range(1, len(frame_coords)):
+
+		old_frame = frame_coords[i - 1]
+		new_frame = frame_coords[i]
+		dir = obj_direction(old_frame, new_frame)
+		directions.append(dir)
+		
+	# combine the info
+	mode = statistics.mode(directions)
+	return mode
+
+
+#################################
+# HELPERS
+#################################
+
+#
+# given two coordinates (x, y), calculate the distance between them
+#
+# params: old coords, new coords
+# returns: the distance between them: sqrt((x1 - x2)^2 + (y1 - y2)^2)
+#
+def coord_change(old_coords, new_coords):
+	x1, y1 = old_coords
+	x2, y2 = new_coords
+	return np.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+
+#
+# given a set of coordinates (x, y), find the area of the polygon they make
+# (meant as a way to approximate the size of the object represented by the coords)
+#
+# params: a set of coords (x, y)
+# returns: the area of the polygon formed by the coords
+#
+
+def approx_size(coords_set):
+	tups = []
+	for c in coords_set:
+		x, y = c
+		tups.append((x, y))
+
+	return 1
+
+	try:
+	#	polygon = geometry.Polygon(tups)
+		return polygon.area
+	except ValueError:
+		# can't get the size for some reason, assume it's because there are <= 2 coords. 
+		if len(coords_set) >= 2:
+			return coord_change(coords_set[0], coords_set[1])
+		else:
+			return 1
+
+#
+# given two sets of coords, returns the (rough) direction of the object
+#
+# params: old_coords_set, new_coords_set
+# returns: the approx direction of the object (left, right, away, towards)
+#
+def obj_direction(old_coords_set, new_coords_set):
+
+	xdirs = []
+	ydirs = []
+	for j in range(len(old_coords_set)):
+		x1, y1 = old_coords_set[j]
+		x2, y2 = new_coords_set[j]
+		xdirs.append(x1 - x2)
+		ydirs.append(y1 - y2)
+
+	if (all(map(lambda x: x > 0, xdirs))): return "left"
+	if (all(map(lambda x: x < 0, xdirs))): return "right"
+
+	# compare the first two coords for away and toward (rough)
+	old_x1, y1 = old_coords_set[0]
+	old_x2, y2 = old_coords_set[1]
+	new_x1, y3 = new_coords_set[0]
+	new_x2, y4 = new_coords_set[1]
+	if (old_x1 - old_x2) > (new_x1 - new_x2): return "away"
+	elif (old_x1 - old_x2) < (new_x1 - new_x2): return "towards"
+	else: return "not sure"
+
+
+#################################
+# CV FUNCTIONS
+#################################
+
 
 #
 # displays the optical flow of the video using CV and captures the list of 
@@ -175,7 +364,7 @@ def main():
 	if args.of:
 		optical_flow(capture)
 
-main()
+#main()
 
 
 
