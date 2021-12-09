@@ -92,8 +92,8 @@ def get_perm_delta(perm_groundfile:str):
 	for cam in camnames:
 		cam_path = path + cam
 		assert os.path.isdir(cam_path)
-		#cam_preds = predict_fire_ml(cam_path)
-		cam_preds = predict_fire_dummy(n_cams, n_frames)
+		cam_preds = predict_fire_tf(cam_path)
+		#cam_preds = predict_fire_dummy(n_cams, n_frames)
 		perm_preds.append(cam_preds)
 
 	# dump predictions to outfile
