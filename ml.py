@@ -1,22 +1,22 @@
 import os
 
-import cv2
 import tensorflow as tf
-from tensorflow import keras
 from utils import *
-from tensorflow.keras import layers
+from clash_checker import check_clashes
+import numpy as np
 
 # y_true is an array of ground truth values
 # y_pred is an array of predictions
-def custom_loss_function(y_true, y_pred):
-    return tf.math.reduce_mean(tf.square(y_true - y_pred))
+def custom_loss_function(predicted_fire_matrix: np.ndarray, ground_truth_matrix: np.ndarray):
+    depth_estimates = np.array(check_clashes(predicted_fire_matrix))
+    return tf.math.reduce_mean(tf.square(ground_truth_matrix - depth_estimates))
 
 # ignore the stuff below. this is just ripped off from the MSNIST classifier
-def get_uncompiled_model(frame):
+def get_uncompiled_model(sample_frame):
 
-    model = keras.Sequential()
-    model.add(keras.SimpleRNN(128, input_shape=frame.shape))
-    model.add(keras.Dense(1))
+    model = tf.keras.Sequential()
+    model.add(tf.keras.SimpleRNN(128, input_shape=sample_frame.shape))
+    model.add(tf.keras.Dense(1))
 
     #inputs = keras.Input(shape=(frame.shape[0], frame.shape[1], 3), name="digits")
     #x = layers.Dense(64, activation="relu", name="dense_1")(inputs)
@@ -26,15 +26,17 @@ def get_uncompiled_model(frame):
     return model
 
 
-def get_compiled_model(frame):
-    model = get_uncompiled_model(frame)
+def get_compiled_model(sample_frame):
+    model = get_uncompiled_model(sample_frame)
     model.compile(
         optimizer="rmsprop",
         loss=custom_loss_function
     )
+    print("returning model")
     return model
 
 model = None
+
 def classify(frames):
     global model
     if model == None:
@@ -52,19 +54,34 @@ def train(ground_file):
     global model
     assert model
     scenario = "scenario1"
-    ground_truth_matrix = get_matrix(os.path.join(DATA_DIR, scenario, ground_file))
+    ground_path = os.path.join(DATA_DIR, scenario, ground_file)
+    ground_truth_matrix = get_matrix(ground_path)
+
+    all_frames = []
     for row_i in range(len(ground_truth_matrix)):
         row = ground_truth_matrix[row_i]
         cam_name = "cam" + str(row_i + 1)
         cam_pics = os.path.join(DATA_DIR, scenario, "s1_p1_" + cam_name)
         frames = []
-        should_fires = []
         for col_i in range(len(row)):
-            should_fire = (col_i + row_i) % len(ground_truth_matrix)
             frame = get_frame(cam_pics, col_i)
             frames.append(frame)
-            should_fires.append(should_fire)
-        model.fit(frames, should_fires)
+        all_frames.append(frames)
+    print("about to fit")
+    #TODO: Can we fit a 3D matrix?
+    model.fit(all_frames, ground_truth_matrix)
+
+    # for row_i in range(len(ground_truth_matrix)):
+    #     row = ground_truth_matrix[row_i]
+    #     cam_name = "cam" + str(row_i + 1)
+    #     cam_pics = os.path.join(DATA_DIR, scenario, "s1_p1_" + cam_name)
+    #     frames = []
+    #     should_fires = []
+    #     for col_i in range(len(row)):
+    #         should_fire = (col_i + row_i) % len(ground_truth_matrix)
+    #         frame = get_frame(cam_pics, col_i)
+    #         frames.append(frame)
+    #         should_fires.append(should_fire)
 
 def predict_fire_tf(jpgs_folder):
     frame_list = []
@@ -80,3 +97,7 @@ def predict_fire_tf(jpgs_folder):
     outcome = classify(frame_list)
     return outcome
 
+if __name__ == "__main__":
+    sample_frame = cv2.imread("SEC\data\scenario1\s1_p1_cam1\frame0.jpg")
+    model = get_compiled_model(sample_frame)
+    train("s1_p1_ground.csv")

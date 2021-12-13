@@ -131,6 +131,14 @@ def get_matrix(file: str):
 		reader = csv.reader(f, delimiter=",")
 		matrix = list(reader)
 
+	#convert everything to float
+	for r, row in enumerate(matrix):
+		for c, col in enumerate(row):
+			if "ground" in file:
+				matrix[r][c] = float(matrix[r][c])
+			elif "fire" in file:
+				matrix[r][c] = int(matrix[r][c])
+
 	return matrix
 
 
