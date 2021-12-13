@@ -125,7 +125,7 @@ def groom_groundfile(file: str):
 # params: name of groundfile: sX_pY_ground.csv
 # returns: matrix of ground truths. rows are cameras, columns are frames
 def get_matrix(file: str):
-	scenario = "scenario" + file.split("_")[0][1:]
+	scenario = "scenario" + file.split("_")[0][-1]
 	matrix = []
 	with open(os.path.join(DATA_DIR, scenario, file), 'r') as f:
 		reader = csv.reader(f, delimiter=",")
@@ -199,6 +199,17 @@ def convert_to_jpgs(video_path: str):
 		success, image = vidcap.read()
 		print('Read a new frame: ', success)
 		count += 1
+
+# frame is a 3d matrix: pixels wide x pixels high x 3 (RBG)
+def flatten_frame(frame):
+
+	flattened = []
+	for x in range(len(frame)):
+		for y in range(len(frame[x])):
+			for rgb in frame[x][y]:
+				flattened.append(rgb)
+
+	return flattened
 
 if __name__ == "__main__":
 	#os.chdir("SEC")

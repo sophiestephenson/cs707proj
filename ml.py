@@ -1,6 +1,9 @@
 import os
+from cv2 import _InputArray_KIND_SHIFT
 
 import tensorflow as tf
+from tensorflow.python.keras.backend import flatten
+from tensorflow.python.keras.engine import input_layer
 from utils import *
 from clash_checker import check_clashes
 import numpy as np
@@ -13,10 +16,15 @@ def custom_loss_function(predicted_fire_matrix: np.ndarray, ground_truth_matrix:
 
 # ignore the stuff below. this is just ripped off from the MSNIST classifier
 def get_uncompiled_model(sample_frame):
-
+    frame = flatten_frame(sample_frame)
     model = tf.keras.Sequential()
-    model.add(tf.keras.SimpleRNN(128, input_shape=sample_frame.shape))
-    model.add(tf.keras.Dense(1))
+    print(sample_frame.shape)
+   # model.add(tf.keras.layers.Convolution2D(8, kernel_size=(3, 3), strides=(5,5), activation='relu', input_shape=sample_frame.shape))
+   # model.add(tf.keras.layers.Flatten())
+    print(model.summary())
+    model.add(tf.keras.layers.SimpleRNN(128)) #, input_shape=(None, 32000)))
+    print(model.summary())
+    model.add(tf.keras.layers.Dense(1, activation="softmax", name="to_fire"))
 
     #inputs = keras.Input(shape=(frame.shape[0], frame.shape[1], 3), name="digits")
     #x = layers.Dense(64, activation="relu", name="dense_1")(inputs)
@@ -54,8 +62,8 @@ def train(ground_file):
     global model
     assert model
     scenario = "scenario1"
-    ground_path = os.path.join(DATA_DIR, scenario, ground_file)
-    ground_truth_matrix = get_matrix(ground_path)
+    #ground_path = os.path.join(DATA_DIR, scenario, ground_file)
+    ground_truth_matrix = get_matrix(ground_file)
 
     all_frames = []
     for row_i in range(len(ground_truth_matrix)):
@@ -65,6 +73,7 @@ def train(ground_file):
         frames = []
         for col_i in range(len(row)):
             frame = get_frame(cam_pics, col_i)
+            #frame = flatten_frame(frame) # turn into just a huge row of 279,600 pixels
             frames.append(frame)
         all_frames.append(frames)
     print("about to fit")
@@ -98,6 +107,7 @@ def predict_fire_tf(jpgs_folder):
     return outcome
 
 if __name__ == "__main__":
-    sample_frame = cv2.imread("SEC\data\scenario1\s1_p1_cam1\frame0.jpg")
+    os.chdir("SEC")
+    sample_frame = cv2.imread(os.path.join("data", "scenario1", "s1_p1_cam1", "frame0.jpg"))
     model = get_compiled_model(sample_frame)
     train("s1_p1_ground.csv")
