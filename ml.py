@@ -1,5 +1,5 @@
 import os
-from cv2 import _InputArray_KIND_SHIFT
+#from cv2 import _InputArray_KIND_SHIFT
 
 import tensorflow as tf
 from tensorflow.python.keras.backend import flatten
@@ -16,15 +16,22 @@ def custom_loss_function(predicted_fire_matrix: np.ndarray, ground_truth_matrix:
 
 # ignore the stuff below. this is just ripped off from the MSNIST classifier
 def get_uncompiled_model(sample_frame):
-    frame = flatten_frame(sample_frame)
+    #frame = flatten_frame(sample_frame)
     model = tf.keras.Sequential()
     print(sample_frame.shape)
-   # model.add(tf.keras.layers.Convolution2D(8, kernel_size=(3, 3), strides=(5,5), activation='relu', input_shape=sample_frame.shape))
-   # model.add(tf.keras.layers.Flatten())
+    conv_layer = tf.keras.layers.Convolution2D(8, kernel_size=(3, 3),
+        strides=(5,5), activation='relu', input_shape=sample_frame.shape)
+    model.add(tf.keras.layers.TimeDistributed(conv_layer,
+        input_shape=(4, sample_frame.shape[0], sample_frame.shape[1], sample_frame.shape[2])))
     print(model.summary())
-    model.add(tf.keras.layers.SimpleRNN(128)) #, input_shape=(None, 32000)))
+    model.add(tf.keras.layers.TimeDistributed(tf.keras.layers.Flatten(),
+        input_shape=((4, 50, 80, 8))))
+    print(model.summary())
+    model.add(tf.keras.layers.SimpleRNN(128, input_shape=(None, 4, 32000)))
     print(model.summary())
     model.add(tf.keras.layers.Dense(1, activation="softmax", name="to_fire"))
+    print(model.summary())
+
 
     #inputs = keras.Input(shape=(frame.shape[0], frame.shape[1], 3), name="digits")
     #x = layers.Dense(64, activation="relu", name="dense_1")(inputs)
