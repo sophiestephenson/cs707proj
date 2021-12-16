@@ -11,6 +11,18 @@ from pprint import pprint
 import matplotlib.pyplot as plt
 
 BATCH_SIZE = 4
+EPOCHS = 10
+FIRE = 1
+NO_FIRE = 0 # make -1 for hinge loss
+
+ACTIVATION = "sigmoid" #"sigmoid"
+
+OPTIMIZER = "rmsprop"
+LOSS = tf.keras.losses.binary_crossentropy
+METRICS = [
+	"binary_accuracy", "binary_crossentropy"
+]
+
 
 def create_cam_ideal():
 	cam1_ideal_fire = []
@@ -18,18 +30,18 @@ def create_cam_ideal():
 
 	for i in range(602):
 		if i % 2 == 0:
-			cam1_ideal_fire.append(1)
-			cam2_ideal_fire.append(0)
+			cam1_ideal_fire.append(FIRE)
+			cam2_ideal_fire.append(NO_FIRE)
 		if i % 2 == 1:
-			cam1_ideal_fire.append(0)
-			cam2_ideal_fire.append(1)
+			cam1_ideal_fire.append(NO_FIRE)
+			cam2_ideal_fire.append(FIRE)
 
 	return cam1_ideal_fire, cam2_ideal_fire
 
 
-def get_lstm_model():
+def get_uncompiled_model():
 	kernel_size = (3, 3)
-	conv_to_LSTM_dims = (1,248,400,32)
+	conv_to_LSTM_dims = (1,248,400,8)
 	LSTM_to_conv_dims = (248,400,8)
 
 	model = tf.keras.Sequential()
@@ -37,57 +49,36 @@ def get_lstm_model():
 	model.add(tf.keras.layers.Conv2D(8, kernel_size, padding='same',
 					activation='tanh', kernel_initializer='he_normal',
 						name='conv1'))
-	model.add(tf.keras.layers.Conv2D(16, kernel_size, padding='same',
-					activation='tanh', kernel_initializer='he_normal',
-						name='conv1_1'))
-	model.add(tf.keras.layers.Conv2D(32, kernel_size, padding='same',
-					activation='tanh', kernel_initializer='he_normal',
-						name='conv1_2'))
+	#model.add(tf.keras.layers.Conv2D(32, kernel_size, padding='same',
+	#				activation='tanh', kernel_initializer='he_normal',
+	#					name='conv1_1'))
+	#model.add(tf.keras.layers.Conv2D(32, kernel_size, padding='same',
+	#				activation='tanh', kernel_initializer='he_normal',
+	#					name='conv1_2'))
+	model.add(tf.keras.layers.Reshape(target_shape=conv_to_LSTM_dims, name='reshapeconvtolstm'))
+	model.add(tf.keras.layers.ConvLSTM2D(filters=8, kernel_size=(3, 3),
+					input_shape=(BATCH_SIZE, 248, 400, 8),
+					padding='same', return_sequences=True,  stateful=True))
+	model.add(tf.keras.layers.Reshape(target_shape=LSTM_to_conv_dims, name='reshapelstmtoconv'))
+	model.add(tf.keras.layers.Conv2D(1, (1,1), padding='same',
+					activation='sigmoid', kernel_initializer='he_normal',
+						name='decoder'))
 	model.add(tf.keras.layers.Flatten())
-	#model.add(tf.keras.layers.Reshape(target_shape=conv_to_LSTM_dims, name='reshapeconvtolstm'))
-	#model.add(tf.keras.layers.ConvLSTM2D(filters=8, kernel_size=(3, 3),
-	#				input_shape=(None, 248, 400, 32),
-	#				padding='same', return_sequences=True,  stateful=False))
-	#model.add(tf.keras.layers.Reshape(target_shape=LSTM_to_conv_dims, name='reshapelstmtoconv'))
-	#model.add(tf.keras.layers.Conv2D(1, (1,1), padding='same',
-	#				activation='sigmoid', kernel_initializer='he_normal',
-	#					name='decoder'))
-	model.add(tf.keras.layers.Dense(1, activation="sigmoid", name="to_fire"))
+	model.add(tf.keras.layers.Dense(1, activation=ACTIVATION, name="to_fire"))
 	model.summary()
 
 	return model
 
-# ignore the stuff below. this is just ripped off from the MSNIST classifier
-def get_uncompiled_model(sample_frame):
-	#frame = flatten_frame(sample_frame)
-
-	model = tf.keras.Sequential()
-	model.add(tf.keras.layers.Convolution2D(32, kernel_size=(3, 3), activation='relu', input_shape=sample_frame.shape))
-	model.add(tf.keras.layers.MaxPool2D((2,2)))
-	model.add(tf.keras.layers.Convolution2D(64, kernel_size=(3, 3), activation='relu'))
-	model.add(tf.keras.layers.MaxPool2D((2,2)))
-	model.add(tf.keras.layers.Convolution2D(8, kernel_size=(3, 3), activation='relu'))
-	model.add(tf.keras.layers.Flatten())
-	model.add(tf.keras.layers.SimpleRNN(128, return_sequences=True)) # input_shape=(4, 602)))#input_shape=[246, 398, 8])) 
-	model.add(tf.keras.layers.Dense(1, name="to_fire"))
-	#model.summary()
-
-	return model
-
-
 def get_compiled_model():
-	model = get_lstm_model()
+	model = get_uncompiled_model()
 	model.compile(
-		optimizer="rmsprop",
-		loss=tf.keras.losses.BinaryCrossentropy(),
+		optimizer=OPTIMIZER,
+		loss=LOSS,
+		metrics=METRICS
 	)
 	return model
 
-model = None
 def classify(frames):
-	global model
-	if model == None:
-		model = get_compiled_model(frames[0])
 	return model.predict(frames)
 
 def get_frame(pics_path, frame_number):
@@ -97,7 +88,7 @@ def get_frame(pics_path, frame_number):
 
 
 # ground_file = "sX_pY_ground.csv"
-def train(ground_file):
+def train():
 	global model
 	assert model
 	scenario = "scenario1"
@@ -130,11 +121,11 @@ def train(ground_file):
 	ideal_fire_list = cam1_ideal_fire + cam2_ideal_fire
 	tf_data = tf.data.Dataset.from_tensor_slices((all_frames, ideal_fire_list))
 	tf_data = tf_data.batch(BATCH_SIZE)
-	model.fit(tf_data, batch_size=BATCH_SIZE, verbose=1, epochs=20)
+	model.fit(tf_data, batch_size=BATCH_SIZE, verbose=1, epochs=EPOCHS)
 
 	testing_data = tf.data.Dataset.from_tensor_slices(all_frames)
 	testing_data = testing_data.batch(BATCH_SIZE)
-	compare_to_ideal(classify(testing_data))
+	compare_to_ideal(model.predict(testing_data))
 
 def predict_fire_tf(jpgs_folder):
 	frame_list = []
@@ -161,15 +152,12 @@ def compare_to_ideal(classification):
 	for i in range(len(diffs)):
 		print(ideals[i], "|", classification[i][0], "|", diffs[i][0], "\n")
 
-	#ids = np.arange(len(diffs))
-	#plt.plot(ids[50], diffs[50])
-	#plt.show()
-
 if __name__ == "__main__":
 	os.chdir("SEC")
 	sample_frame = cv2.imread(os.path.join("data", "scenario1", "s1_p1_cam1", "frame0.jpg"))
+	model = None
 	model = get_compiled_model()
-	train("s1_p1_ground.csv")
+	train()
 
 
 
