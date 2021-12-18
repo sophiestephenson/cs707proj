@@ -3,16 +3,16 @@
 ################################
 
 import math
-import pickle
-
+#import pickle
+import tensorflow as tf
 import numpy as np
 #from shapely import geometry
 import os
 import matplotlib.pyplot as plt
 from config import *
 import csv
-import statistics
-from cv import optical_flow
+#import statistics
+#from cv import optical_flow
 
 import cv2
 
@@ -35,7 +35,7 @@ def smooth_data(l):
 # params: list of data
 # returns: data without outliers (outliers become the previous value)
 #
-# https://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list 
+# https://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list
 def reject_outliers(data):
 	Q1, Q3 = np.quantile(data, [0.25, 0.75])
 	IQR = Q3 - Q1
@@ -44,7 +44,7 @@ def reject_outliers(data):
 		return (x < (Q1 - 1.5 * IQR) or x > (Q3 + 1.5 * IQR))
 
 	outliers = list(map(isOutlier, data))
-	
+
 	for i in range(len(data)):
 		if outliers[i] and i > 0:
 			print("removed outlier:", data[i])
@@ -53,7 +53,7 @@ def reject_outliers(data):
 
 #
 # create a plot of the data with the given title
-# 
+#
 # params: data, title
 # returns: nothing, but prints a plot
 #
@@ -93,26 +93,26 @@ def groom_groundfile(file: str):
 				matrix[r][c] = float(matrix[r][c]) / 100
 
 	#fix the lengths of the ground truths according to the frame_coords in the pkls
-	stem = file.replace("_ground.csv", "")
-	pkls = [f for f in os.listdir(os.path.join(DATA_DIR, scenario, )) if stem in f and f.endswith(".pkl")]
-
-	new_matrix = []
-	for pkl in pkls:
-		frame_coords = pickle.load(open(os.path.join(DATA_DIR, scenario, pkl), "rb"))
-		num_frames = len(frame_coords)
-		#pkl = "s1_p1_cam1_coords.pkl" <- example
-		cam_number = int(pkl.split(".")[0].split("_")[2][3:])
-		orig_len = len(matrix[cam_number - 1])  # -1 because cams start at 1
-		print(cam_number)
-		print(orig_len)
-		# map the gp to a new list
-		ground_truth_new_row = []
-		for i in range(num_frames):
-			gt_i = round((i/num_frames) * orig_len)
-			ground_truth_new_row.append(float(matrix[cam_number - 1][gt_i]))
-		new_matrix.append(ground_truth_new_row)
-
-	matrix = new_matrix
+	# stem = file.replace("_ground.csv", "")
+	# pkls = [f for f in os.listdir(os.path.join(DATA_DIR, scenario, )) if stem in f and f.endswith(".pkl")]
+	#
+	# new_matrix = []
+	# for pkl in pkls:
+	# 	frame_coords = pickle.load(open(os.path.join(DATA_DIR, scenario, pkl), "rb"))
+	# 	num_frames = len(frame_coords)
+	# 	#pkl = "s1_p1_cam1_coords.pkl" <- example
+	# 	cam_number = int(pkl.split(".")[0].split("_")[2][3:])
+	# 	orig_len = len(matrix[cam_number - 1])  # -1 because cams start at 1
+	# 	print(cam_number)
+	# 	print(orig_len)
+	# 	# map the gp to a new list
+	# 	ground_truth_new_row = []
+	# 	for i in range(num_frames):
+	# 		gt_i = round((i/num_frames) * orig_len)
+	# 		ground_truth_new_row.append(float(matrix[cam_number - 1][gt_i]))
+	# 	new_matrix.append(ground_truth_new_row)
+	#
+	# matrix = new_matrix
 	# update the file
 	with open(os.path.join(DATA_DIR, scenario, file), 'w', newline='') as f:
 		writer = csv.writer(f, delimiter=",")
@@ -199,6 +199,14 @@ def convert_to_jpgs(video_path: str):
 		success, image = vidcap.read()
 		print('Read a new frame: ', success)
 		count += 1
+import random
+def tf_print(tensor, filename, new=False):
+	if not new and os.path.exists(filename):
+		os.remove(filename)
+	if new and os.path.exists(filename):
+		suffix = str(random.randint(0, 100000000))
+		filename = filename + suffix
+	return tf.print(tensor, output_stream="file://" + filename, summarize=-1)
 
 # frame is a 3d matrix: pixels wide x pixels high x 3 (RBG)
 def flatten_frame(frame):
@@ -213,5 +221,6 @@ def flatten_frame(frame):
 
 if __name__ == "__main__":
 	#os.chdir("SEC")
-	#groom_groundfile("s1_p1_ground.csv")
-	convert_to_jpgs(os.path.join("SEC", DATA_DIR, "scenario1", "s1_p1_cam2.mov"))
+	#get_matrix("s2_p1_ground.csv")
+	#groom_groundfile("s2_p1_ground.csv")
+	convert_to_jpgs(os.path.join("SEC", DATA_DIR, "scenario2", "s2_p1_cam4.mp4"))
