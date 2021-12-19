@@ -125,7 +125,7 @@ def groom_groundfile(file: str):
 # params: name of groundfile: sX_pY_ground.csv
 # returns: matrix of ground truths. rows are cameras, columns are frames
 def get_matrix(file: str):
-	scenario = "scenario" + file.split("_")[0][-1]
+	scenario = "scenario" + file.split("_")[0][1:]
 	matrix = []
 	with open(os.path.join(DATA_DIR, scenario, file), 'r') as f:
 		reader = csv.reader(f, delimiter=",")
@@ -182,12 +182,14 @@ def rescale_frame(frame, percent=25):
 	dim = (width, height)
 	return cv2.resize(frame, dim, interpolation =cv2.INTER_AREA)
 
-def convert_to_jpgs(video_path: str):
+def convert_to_jpgs(video_path: str, dest=None):
 	path, video = os.path.split(video_path)
 	video = video.split(".")[0]
 	#the folder where the jpegs will go
-	if not os.path.exists(os.path.join(path, video)):
-		os.mkdir(os.path.join(path, video))
+	if not dest:
+		dest = os.path.join(path, video)
+	if not os.path.exists(dest):
+		os.mkdir(dest)
 
 	vidcap = cv2.VideoCapture(video_path)
 
@@ -195,10 +197,11 @@ def convert_to_jpgs(video_path: str):
 	count = 0
 	while success:
 		image = rescale_frame(image, 25)
-		cv2.imwrite(os.path.join(path, video, "frame%d.jpg" % count), image)  # save frame as JPEG file
+		cv2.imwrite(os.path.join(dest, "frame%d.jpg" % count), image)  # save frame as JPEG file
 		success, image = vidcap.read()
-		print('Read a new frame: ', success)
 		count += 1
+	return count
+
 import random
 def tf_print(tensor, filename, new=False):
 	if not new and os.path.exists(filename):
@@ -206,7 +209,18 @@ def tf_print(tensor, filename, new=False):
 	if new and os.path.exists(filename):
 		suffix = str(random.randint(0, 100000000))
 		filename = filename + suffix
-	return tf.print(tensor, output_stream="file://" + filename, summarize=-1)
+	if not os.path.exists("prints"):
+		os.mkdir("prints")
+	return tf.print(tensor, output_stream="file://prints/" + filename, summarize=-1)
+
+# assumes you're in SEC dir
+def get_list_of_gts():
+	scenarios = [os.path.join(DATA_DIR, s) for s in os.listdir(DATA_DIR)]
+	gts = []
+	for scenario in scenarios:
+		groundfile = [f for f in os.listdir(scenario) if "ground" in f][0]
+		gts.append(groundfile)
+	return gts
 
 # frame is a 3d matrix: pixels wide x pixels high x 3 (RBG)
 def flatten_frame(frame):
