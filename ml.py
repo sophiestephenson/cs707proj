@@ -15,11 +15,11 @@ import sys
 
 ground_truths = {}
 
-current_n_cam = 4
+N_CAMS = 4
 # y_true is an array of ground truth values
 # y_pred is an array of predictions
 def custom_loss_function(ground_truth_matrix: tf.Tensor, predicted_fire_matrix: tf.Tensor):
-    global current_n_cam
+    global N_CAMS
     #print("IN LOSS")
     #tf.print(predicted_fire_matrix, output_stream=sys.stdout)
     #tf.print(ground_truth_matrix)
@@ -49,9 +49,13 @@ def get_uncompiled_model(sample_frame):
     # model.add(tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(1, input_shape=(1,)),
     #                                           input_shape=(SLICE_SIZE,1)))
     #model.add(tf.keras.layers.SimpleRNN(128)) #, input_shape=(None, SLICE_SIZE, 32000)))
-    model.add(tf.keras.layers.Dense(128))
+    model.add(tf.keras.layers.TimeDistributed(
+        tf.keras.layers.Dense(1, input_shape=(1,1)),
+        input_shape=(SLICE_SIZE,1)
+    ))
+    model.add(tf.keras.layers.SimpleRNN(128))
     model.add(tf.keras.layers.Dense(1, name="to_fire"))
-    model.build(input_shape=(1,1))
+    model.build(input_shape=(SLICE_SIZE,1))
     print(model.summary())
 
 
@@ -85,13 +89,15 @@ def get_frame(pics_path, frame_number):
     frame = cv2.imread(os.path.join(pics_path, frame_name))
     return frame
 
-def get_slices(stem, limit=1, cams=None):
+def get_slices(stem, limit=None, cams=None):
     scenario = "scenario" + stem.split("_")[0][1:]
     path = os.path.join(DATA_DIR, scenario)
     cam_folders = [os.path.join(path, d) for d in os.listdir(path) if stem in d and os.path.isdir(os.path.join(path, d))]
     n_frames = len(os.listdir(cam_folders[0]))
     n_cams = len(cam_folders)
 
+    # only need this for fake
+    ground_truth = np.array(get_matrix(stem + "ground.csv"))
 
     all_frames = []
     ele_shape = None
@@ -103,8 +109,10 @@ def get_slices(stem, limit=1, cams=None):
         cam_pics = os.path.join(path, stem + cam_name)
         frames_slice = []
         all_frames.append([])
-        for col_i in range(n_frames - 1):
-            frame = get_frame(cam_pics, col_i)
+        for col_i in range(n_frames-1):
+            #frame = get_frame(cam_pics, col_i)
+            # THIS IS FAKE
+            frame = ground_truth[row_i, col_i]
             if type(frame) == type(None):
                 continue
             frames_slice.append(frame)
@@ -113,8 +121,7 @@ def get_slices(stem, limit=1, cams=None):
                 if not ele_shape:
                     ele_shape = frame_slice_nd.shape
                 else:
-                    if not ele_shape == frame_slice_nd.shape:
-                        assert ele_shape == frame_slice_nd.shape
+                    assert ele_shape == frame_slice_nd.shape
                 all_frames[r].append(frame_slice_nd)
                 # remove oldest frame
                 frames_slice.pop(0)
@@ -131,7 +138,10 @@ def get_slices(stem, limit=1, cams=None):
         batch = len(cams)
     else:
         batch = n_cams
-    return flat_frame_list[:int(batch * limit)]
+    if not limit:
+        return flat_frame_list
+    else:
+        return flat_frame_list[:int(batch * limit)]
 
 # ground_file = "sX_pY_ground.csv"
 def train(ground_files):
@@ -147,12 +157,10 @@ def train(ground_files):
         #ground_path = os.path.join(DATA_DIR, scenario, ground_file)
         ground_truth_matrix = np.array(get_matrix(ground_file), dtype=float)
         stem = ground_file.replace('ground.csv', '')
+        flat_slice_list = get_slices(stem)
 
-        flat_frame_list = get_slices(stem) # limit=1
-
-        # 0, 1, 2 cannot have 4 frame slices. also, for some reason GT has one extra frame
-        ground_truth_matrix = ground_truth_matrix[:, SLICE_SIZE:]
-
+        # 0, 1, 2 cannot have 4 frame slices
+        ground_truth_matrix = ground_truth_matrix[:, SLICE_SIZE-1:len(flat_slice_list)//N_CAMS + (SLICE_SIZE-1)]
         #pass ground truths in column order. (cam1, frame0), (cam2, frame0)...
         gt_flat = []
         for col_i in range(len(ground_truth_matrix[0])):
@@ -161,15 +169,27 @@ def train(ground_files):
         gt_flat = np.array(gt_flat)
         ground_truths.append(gt_flat)
 
-        #TODO: Can we fit a 3D matrix?
-        #tf_print(tf.convert_to_tensor(flat_frame_list[:4]), "training_data")
+        # TODO: REMOVE. FAKE ONLY vv
+        for i in range(len(gt_flat)):
+            assert flat_slice_list[i][SLICE_SIZE-1] == gt_flat[i]
+        # FAKE ONLY ^^
+
+
+        #tf_print(tf.convert_to_tensor(flat_slice_list[:4]), "training_data")
         #model.fit(flat_frame_list[:4], gt_flat[:4], batch_size=4, epochs=10, shuffle=False)
 
-        fake_data = np.reshape(gt_flat, (gt_flat.shape[0],1))
-        training_data_fake.append(fake_data)
+        #fake_data = np.reshape(gt_flat, (gt_flat.shape[0],1))
+        #TODO: FAKE HAS ONLY 1 FEATURE
+        flat_slice_list = np.reshape(flat_slice_list,
+            (flat_slice_list.shape[0], flat_slice_list.shape[1], 1))
+            #samples                    NUM_SLICE             1 feature: the depth
+        training_data_fake.append(flat_slice_list)
     training_data_fake = np.concatenate(training_data_fake)
+    print("training data shape is: ")
+    print(training_data_fake.shape)
     ground_truths = np.concatenate(ground_truths)
-    model.fit(training_data_fake, ground_truths, epochs=3, batch_size=4, shuffle=False)
+    print("all ground truths shape is: " + str(ground_truths.shape))
+    model.fit(training_data_fake, ground_truths, epochs=2, batch_size=N_CAMS, shuffle=False)
 
 
     # for row_i in range(len(ground_truth_matrix)):
@@ -204,7 +224,7 @@ def predict_fire_tf(stem, cam, limit=1):
     outcome = classify(predict_tensor)
     return outcome
 
-force_new_model = False
+force_new_model = True
 if __name__ == "__main__":
     os.chdir("SEC")
     if not force_new_model:
@@ -215,7 +235,6 @@ if __name__ == "__main__":
     else:
         model = None
     sample_frame = cv2.imread(os.path.join("data", "scenario1", "s1_p1_cam1", "frame0.jpg"))
-    print(sample_frame)
     if model == None:
         print("generating model")
         model = get_compiled_model(sample_frame)

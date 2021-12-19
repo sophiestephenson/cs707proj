@@ -86,8 +86,7 @@ def get_frame(pics_path, frame_number):
     return frame
 
 def get_slices(stem, limit=1, cams=None):
-    scenario = "scenario" + stem.split("_")[0][-1]
-    assert scenario == "scenario2"
+    scenario = "scenario" + stem.split("_")[0][1:]
     path = os.path.join(DATA_DIR, scenario)
     cam_folders = [os.path.join(path, d) for d in os.listdir(path) if stem in d and os.path.isdir(os.path.join(path, d))]
     n_frames = len(os.listdir(cam_folders[0]))
@@ -135,32 +134,42 @@ def get_slices(stem, limit=1, cams=None):
     return flat_frame_list[:int(batch * limit)]
 
 # ground_file = "sX_pY_ground.csv"
-def train(ground_file):
+def train(ground_files):
     global model
     assert model
-    scenario = "scenario" + ground_file.split("_")[0][-1]
-    assert scenario == "scenario2"
-    #ground_path = os.path.join(DATA_DIR, scenario, ground_file)
-    ground_truth_matrix = np.array(get_matrix(ground_file), dtype=float)
-    stem = ground_file.replace('ground.csv', '')
 
-    flat_frame_list = get_slices(stem) # limit=1
+    training_data = []
+    training_data_fake = []
+    ground_truths = []
+    for ground_file in ground_files:
+        print(ground_file)
+        scenario = "scenario" + ground_file.split("_")[0][1:]
+        #ground_path = os.path.join(DATA_DIR, scenario, ground_file)
+        ground_truth_matrix = np.array(get_matrix(ground_file), dtype=float)
+        stem = ground_file.replace('ground.csv', '')
 
-    # 0, 1, 2 cannot have 4 frame slices. also, for some reason GT has one extra frame
-    ground_truth_matrix = ground_truth_matrix[:, SLICE_SIZE:]
+        flat_frame_list = get_slices(stem) # limit=1
 
-    #pass ground truths in column order. (cam1, frame0), (cam2, frame0)...
-    gt_flat = []
-    for col_i in range(len(ground_truth_matrix[0])):
-        for cam_i in range(len(ground_truth_matrix)):
-            gt_flat.append(ground_truth_matrix[cam_i][col_i])
-    gt_flat = np.array(gt_flat)
-    #TODO: Can we fit a 3D matrix?
-    #tf_print(tf.convert_to_tensor(flat_frame_list[:4]), "training_data")
-    #model.fit(flat_frame_list[:4], gt_flat[:4], batch_size=4, epochs=10, shuffle=False)
+        # 0, 1, 2 cannot have 4 frame slices. also, for some reason GT has one extra frame
+        ground_truth_matrix = ground_truth_matrix[:, SLICE_SIZE:]
 
-    fake_data = np.reshape(gt_flat, (gt_flat.shape[0],1))
-    model.fit(fake_data, gt_flat, epochs=12, batch_size=4, shuffle=False)
+        #pass ground truths in column order. (cam1, frame0), (cam2, frame0)...
+        gt_flat = []
+        for col_i in range(len(ground_truth_matrix[0])):
+            for cam_i in range(len(ground_truth_matrix)):
+                gt_flat.append(ground_truth_matrix[cam_i][col_i])
+        gt_flat = np.array(gt_flat)
+        ground_truths.append(gt_flat)
+
+        #TODO: Can we fit a 3D matrix?
+        #tf_print(tf.convert_to_tensor(flat_frame_list[:4]), "training_data")
+        #model.fit(flat_frame_list[:4], gt_flat[:4], batch_size=4, epochs=10, shuffle=False)
+
+        fake_data = np.reshape(gt_flat, (gt_flat.shape[0],1))
+        training_data_fake.append(fake_data)
+    training_data_fake = np.concatenate(training_data_fake)
+    ground_truths = np.concatenate(ground_truths)
+    model.fit(training_data_fake, ground_truths, epochs=3, batch_size=4, shuffle=False)
 
 
     # for row_i in range(len(ground_truth_matrix)):
@@ -195,21 +204,23 @@ def predict_fire_tf(stem, cam, limit=1):
     outcome = classify(predict_tensor)
     return outcome
 
-new_model = False
+force_new_model = False
 if __name__ == "__main__":
     os.chdir("SEC")
-    if not new_model:
+    if not force_new_model:
         try:
             model = tf.keras.models.load_model("model_save", compile=False)
         except IOError:
             model = None
     else:
         model = None
-    sample_frame = cv2.imread(os.path.join("data", "scenario2", "s2_p1_cam1", "frame0.jpg"))
+    sample_frame = cv2.imread(os.path.join("data", "scenario1", "s1_p1_cam1", "frame0.jpg"))
+    print(sample_frame)
     if model == None:
         print("generating model")
         model = get_compiled_model(sample_frame)
-        train("s2_p1_ground.csv")
+        ground_files = get_list_of_gts()
+        train(ground_files)
         model.save("model_save")
 
 
