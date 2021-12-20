@@ -9,13 +9,15 @@ from clash_checker import check_clashes
 import numpy as np
 from tensorflow.python.ops.numpy_ops import np_config
 np_config.enable_numpy_behavior()
+import time
 
-SLICE_SIZE = 4
+SLICE_SIZE = 32
 import sys
 
 ground_truths = {}
 
 N_CAMS = 4
+N_SCENARIOS = 20
 # y_true is an array of ground truth values
 # y_pred is an array of predictions
 def custom_loss_function(ground_truth_matrix: tf.Tensor, predicted_fire_matrix: tf.Tensor):
@@ -45,7 +47,7 @@ def custom_loss_function(ground_truth_matrix: tf.Tensor, predicted_fire_matrix: 
 # ignore the stuff below. this is just ripped off from the MSNIST classifier
 def get_uncompiled_model(sample_frame):
     #frame = flatten_frame(sample_frame)
-    model = tf.keras.Sequential()
+    #model = tf.keras.Sequential()
     print(sample_frame.shape)
     # conv_layer = tf.keras.layers.Convolution2D(32, kernel_size=(5, 5),
     #     strides=(1,1), input_shape=sample_frame.shape)
@@ -57,13 +59,19 @@ def get_uncompiled_model(sample_frame):
     # model.add(tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(1, input_shape=(1,)),
     #                                           input_shape=(SLICE_SIZE,1)))
     #model.add(tf.keras.layers.SimpleRNN(128)) #, input_shape=(None, SLICE_SIZE, 32000)))
-    model.add(tf.keras.layers.TimeDistributed(
-        tf.keras.layers.Dense(1, input_shape=(1,1)),
+    inputs = tf.keras.layers.Input(shape=(SLICE_SIZE,1))
+    td = tf.keras.layers.TimeDistributed(
+        tf.keras.layers.Dense(128, input_shape=(1,1)),
         input_shape=(SLICE_SIZE,1)
-    ))
-    model.add(tf.keras.layers.SimpleRNN(128))
-    model.add(tf.keras.layers.Dense(1, activation="sigmoid", name="to_fire"))
-    model.build(input_shape=(SLICE_SIZE,1))
+    )(inputs)
+    rnn = tf.keras.layers.SimpleRNN(512)(td)
+    mid = tf.keras.layers.Dense(128)(rnn)
+    mid3 = tf.keras.layers.Dense(128)(mid)
+    scen = tf.keras.layers.Dense(N_SCENARIOS, activation="softmax", name="scenario")(mid3)
+    #conc = tf.keras.layers.concatenate([mid, scen])
+    mid2 = tf.keras.layers.Dense(128)(mid)
+    cam = tf.keras.layers.Dense(N_CAMS, activation="softmax", name="cam")(mid2)
+    model = tf.keras.Model(inputs=inputs, outputs=[scen, cam])
     print(model.summary())
 
 
@@ -79,7 +87,10 @@ def get_compiled_model(sample_frame):
     model = get_uncompiled_model(sample_frame)
     model.compile(
         optimizer="adam",
-        loss=custom_loss_function
+        loss={'scenario': 'sparse_categorical_crossentropy',
+              'cam': 'sparse_categorical_crossentropy'},
+        metrics={'scenario': tf.metrics.SparseCategoricalAccuracy(name='acc_scen'),
+                 'cam': tf.metrics.SparseCategoricalAccuracy(name='acc_cam')}
     )
     print("returning model")
     return model
@@ -158,10 +169,12 @@ def train(ground_files):
 
     training_data = []
     training_data_fake = []
-    ground_truths = []
+    ground_truths_scenario = []
+    ground_truths_cam = []
     for ground_file in ground_files:
         print(ground_file)
-        scenario = "scenario" + ground_file.split("_")[0][1:]
+        scenario_num = ground_file.split("_")[0][1:]
+        scenario = "scenario" + scenario_num
         #ground_path = os.path.join(DATA_DIR, scenario, ground_file)
         ground_truth_matrix = np.array(get_matrix(ground_file), dtype=float)
         stem = ground_file.replace('ground.csv', '')
@@ -170,16 +183,20 @@ def train(ground_files):
         # 0, 1, 2 cannot have 4 frame slices
         ground_truth_matrix = ground_truth_matrix[:, SLICE_SIZE-1:len(flat_slice_list)//N_CAMS + (SLICE_SIZE-1)]
         #pass ground truths in column order. (cam1, frame0), (cam2, frame0)...
-        gt_flat = []
+        gt_flat_cam = []
+        gt_flat_scenario = []
         for col_i in range(len(ground_truth_matrix[0])):
             for cam_i in range(len(ground_truth_matrix)):
-                gt_flat.append(ground_truth_matrix[cam_i][col_i])
-        gt_flat = np.array(gt_flat)
-        ground_truths.append(gt_flat)
+                #gt_flat.append(ground_truth_matrix[cam_i][col_i])
+                # CHANGED FOR SCENARIO DETECTION: (scenario, cam)
+                gt_flat_cam.append(cam_i)
+                gt_flat_scenario.append(int(scenario_num) - 1)
+        ground_truths_cam.append(np.array(gt_flat_cam))
+        ground_truths_scenario.append(np.array(gt_flat_scenario))
 
         # TODO: REMOVE. FAKE ONLY vv
-        for i in range(len(gt_flat)):
-            assert flat_slice_list[i][SLICE_SIZE-1] == gt_flat[i]
+        # for i in range(len(gt_flat)):
+        #     assert flat_slice_list[i][SLICE_SIZE-1]
         # FAKE ONLY ^^
 
 
@@ -195,9 +212,12 @@ def train(ground_files):
     training_data_fake = np.concatenate(training_data_fake)
     print("training data shape is: ")
     print(training_data_fake.shape)
-    ground_truths = np.concatenate(ground_truths)
-    print("all ground truths shape is: " + str(ground_truths.shape))
-    model.fit(training_data_fake, ground_truths, epochs=2, batch_size=N_CAMS, shuffle=False)
+    ground_truths_cam = np.concatenate(ground_truths_cam)
+    ground_truths_scenario = np.concatenate(ground_truths_scenario)
+    print("cam ground truths shape is: " + str(ground_truths_cam.shape))
+    print("sce ground truths shape is: " + str(ground_truths_scenario.shape))
+
+    model.fit(training_data_fake, {'cam':ground_truths_cam, 'scenario': ground_truths_scenario}, epochs=50, shuffle=True)
 
 
     # for row_i in range(len(ground_truth_matrix)):
@@ -212,7 +232,7 @@ def train(ground_files):
     #         frames.append(frame)
     #         should_fires.append(should_fire)
 
-def predict_fire_tf(stem, cam, limit=1):
+def predict_fire_tf(stem, cam, limit=None):
     frame_slice_list = get_slices(stem, limit, [cam])
     #dummy_list = get_matrix(stem + "ground.csv")
 
@@ -249,18 +269,48 @@ if __name__ == "__main__":
         ground_files = get_list_of_gts()
         train(ground_files)
         model.save("model_save")
-
+    else:
+        print("loaded model")
 
     # retval = predict_fire_tf(os.path.join("data", "scenario2", "s2_p1_cam1"))
     # retval2 = predict_fire_tf(os.path.join("data", "scenario2", "s2_p1_cam2"))
     # retval3 = predict_fire_tf(os.path.join("data", "scenario2", "s2_p1_cam3"))
     # retval4 = predict_fire_tf(os.path.join("data", "scenario2", "s2_p1_cam4"))
 
+    total_frames = 0
+    start_time = time.time()
     retval = predict_fire_tf("s2_p1_", "cam1")
+    #total_frames += len(retval[0])
     retval2 = predict_fire_tf("s2_p1_", "cam2")
+    #total_frames += len(retval2[0])
     retval3 = predict_fire_tf("s2_p1_", "cam3")
+    #total_frames += len(retval3[0])
     retval4 = predict_fire_tf("s2_p1_", "cam4")
-    # summarize = -1 means print the full tensor
+    #total_frames += len(retval4[0])
+
+
+    retval = predict_fire_tf("s1_p1_", "cam1")
+    #total_frames += len(retval[0])
+    retval2 = predict_fire_tf("s1_p1_", "cam2")
+    #total_frames += len(retval2[0])
+    retval3 = predict_fire_tf("s1_p1_", "cam3")
+    #total_frames += len(retval3[0])
+    retval4 = predict_fire_tf("s1_p1_", "cam4")
+    #total_frames += len(retval4[0])
+
+    retval = predict_fire_tf("s5_p1_", "cam1")
+    #total_frames += len(retval[0])
+    retval2 = predict_fire_tf("s5_p1_", "cam2")
+    #total_frames += len(retval2[0])
+    retval3 = predict_fire_tf("s5_p1_", "cam3")
+    #total_frames += len(retval3[0])
+    retval4 = predict_fire_tf("s5_p1_", "cam4")
+    #total_frames += len(retval4[0])
+    end_time = time.time()
+    print(end_time - start_time)
+    #print(total_frames)
+
+    # # summarize = -1 means print the full tensor
     tf_print(retval, "outfile1")
     tf_print(retval2, "outfile2")
     tf_print(retval3, "outfile3")
