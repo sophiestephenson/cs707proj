@@ -20,17 +20,24 @@ N_CAMS = 4
 # y_pred is an array of predictions
 def custom_loss_function(ground_truth_matrix: tf.Tensor, predicted_fire_matrix: tf.Tensor):
     global N_CAMS
-    #print("IN LOSS")
-    #tf.print(predicted_fire_matrix, output_stream=sys.stdout)
-    #tf.print(ground_truth_matrix)
-    # reshaped_fire = predicted_fire_matrix.reshape((current_n_cam, len(predicted_fire_matrix)//current_n_cam))
-    # reshaped_ground = ground_truth_matrix.reshape((current_n_cam, len(predicted_fire_matrix)//current_n_cam))
-    # depth_estimates = check_clashes(ground_matrix=reshaped_ground, fire_matrix=reshaped_fire)
-    # depth_estimates = tf.reshape(depth_estimates, ground_truth_matrix.shape)
+    tensor_N_CAMS = tf.constant(4)
+    tensor_FRAMES = tf.constant(1)
+    print("IN LOSS")
+    # new_length = tf.cast(tf.math.round(tf.math.divide(predicted_fire_matrix.shape[0], tensor_N_CAMS)), dtype=tf.int32)
+    # tf_print(predicted_fire_matrix.shape[0], "oldlength")
+    # print(new_length, "length")
+    # new_shape = tf.convert_to_tensor([tensor_N_CAMS, new_length])
+    # flatten the shape value to (rows, cols)
+    # new_shape = tf.reshape(new_shape, [-1])
+    new_shape = (tensor_N_CAMS, tensor_FRAMES)
+    reshaped_fire = tf.reshape(predicted_fire_matrix, new_shape)
+    reshaped_ground = tf.reshape(ground_truth_matrix, new_shape)
+    depth_estimates = check_clashes(ground_matrix=reshaped_ground, fire_matrix=reshaped_fire)
+    depth_estimates = tf.reshape(depth_estimates, ground_truth_matrix.shape)
     tf_print(ground_truth_matrix, "gt")
     tf_print(predicted_fire_matrix, "pred")
-    retval = tf.square(tf.math.subtract(ground_truth_matrix, predicted_fire_matrix))
-    tf_print(retval, "mean")
+    retval = tf.square(tf.math.subtract(ground_truth_matrix, depth_estimates))
+    tf_print(retval, "loss")
     return retval
     #return tf.repeat([500.0], repeats=[predicted_fire_matrix.shape[0]])
 
@@ -54,7 +61,7 @@ def get_uncompiled_model(sample_frame):
         input_shape=(SLICE_SIZE,1)
     ))
     model.add(tf.keras.layers.SimpleRNN(128))
-    model.add(tf.keras.layers.Dense(1, name="to_fire"))
+    model.add(tf.keras.layers.Dense(1, activation="sigmoid", name="to_fire"))
     model.build(input_shape=(SLICE_SIZE,1))
     print(model.summary())
 
